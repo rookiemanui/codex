@@ -19,7 +19,8 @@ def main():
     destination.mkdir(parents=True, exist_ok=True)
     files = [ROOT / name for name in ['README.md', '.gitignore', 'run.py', 'start.sh', '启动账本.bat',
         '启动外网试用.bat', '用Chrome打开账本.bat', '安装截图识别.bat', 'requirements-ocr.in', 'requirements-ocr.lock',
-        'requirements-dev.in', 'requirements-dev.lock', 'ruff.toml']]
+        'requirements-dev.in', 'requirements-dev.lock', 'ruff.toml',
+        'requirements-packaging.in', 'requirements-packaging-linux.lock']]
     for folder, suffixes in [('localledger', {'.py', '.html', '.css', '.js', '.svg'}),
                              ('scripts', {'.py', '.json'}), ('tests', {'.py'}), ('docs', {'.md'}),
                              ('deploy', {'.example'}), ('devtools', {'.json'})]:
@@ -36,7 +37,8 @@ def main():
     if (skill_root / 'sources.json').is_file():
         development_files = [p for p in skill_root.rglob('*') if p.is_file() and '__pycache__' not in p.parts]
         development_files += [ROOT / p for p in ['requirements-dev.in', 'requirements-dev.lock', 'ruff.toml',
-            'scripts/verify_skills.py', 'docs/工具与优化.md']]
+            'scripts/verify_skills.py', 'docs/工具与优化.md', 'scripts/verify_packaging_tools.py',
+            'docs/本地打包工具.md', 'requirements-packaging.in', 'requirements-packaging-linux.lock']]
         development_files += list((ROOT / 'devtools').glob('*.json'))
         kit = destination / f'ledger-development-kit-{__version__}.zip'
         with zipfile.ZipFile(kit, 'w', zipfile.ZIP_DEFLATED) as z:

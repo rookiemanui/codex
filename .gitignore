@@ -34,3 +34,5 @@ access.json
 !.env.example
 *.pem
 *.key
+
+.packaging-venv/
