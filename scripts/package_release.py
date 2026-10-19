@@ -22,7 +22,7 @@ def main():
         'requirements-dev.in', 'requirements-dev.lock', 'ruff.toml',
         'requirements-packaging.in', 'requirements-packaging-linux.lock']]
     for folder, suffixes in [('localledger', {'.py', '.html', '.css', '.js', '.svg'}),
-                             ('scripts', {'.py', '.json'}), ('tests', {'.py'}), ('docs', {'.md'}),
+                             ('scripts', {'.py', '.json'}), ('tests', {'.py'}), ('docs', {'.md', '.html'}),
                              ('deploy', {'.example'}), ('devtools', {'.json'})]:
         files.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and p.suffix in suffixes and '__pycache__' not in p.parts)
     archive = destination / f'local-ledger-{__version__}.zip'
