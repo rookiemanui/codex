@@ -1,0 +1,10 @@
+# Future stable deployment: replace with a domain you control, pointed to this host.
+# The app must run on this same machine:
+# python run.py --host 127.0.0.1 --public-url https://ledger.example.com --no-browser
+ledger.example.com {
+    encode gzip
+    reverse_proxy 127.0.0.1:8765 {
+        header_up Host {host}
+        header_up X-Forwarded-Proto https
+    }
+}

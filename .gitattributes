@@ -1,0 +1,2 @@
+# Keep pinned third-party skill files byte-identical on every platform.
+.agents/skills/** -text

@@ -1,0 +1,36 @@
+.venv/
+.cache/
+__pycache__/
+*.py[cod]
+data/
+dist/
+build/
+*.spec
+.test-data/
+node_modules/
+playwright-results/
+*.log
+
+# Optional external tunnel binaries and local configuration
+cloudflared
+cloudflared.exe
+Caddyfile
+.dev-venv/
+.dev-tools/
+output/
+.playwright/
+
+# Private ledger files, credentials and local backup archives
+backups/
+receipts/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.zip
+access.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key

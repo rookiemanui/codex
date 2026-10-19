@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#174e48" />
+    <title>本地账本 · 小店收支与库存</title>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/checks.js" defer></script>
+    <script src="/pos.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div id="app"><div class="starting">正在打开本地账本…</div></div>
+    <div id="modal-root"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <input
+      id="image-input"
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      multiple
+      hidden
+    />
+  </body>
+</html>
