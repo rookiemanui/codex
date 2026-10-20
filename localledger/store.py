@@ -184,6 +184,19 @@ class Store(Restaurant):
                 if not intact:
                     self._atomic_json(destination, expected)
                 self._last_backed_sequence = max(self._last_backed_sequence, row['backup_sequence'])
+            if full:
+                for receipt in db.execute('SELECT sha256,extension FROM receipts'):
+                    name = receipt['sha256'] + receipt['extension']
+                    original = self.root / 'receipts' / name
+                    backup = self.root / 'backups/receipts' / name
+                    original_ok = original.is_file() and hashlib.sha256(original.read_bytes()).hexdigest() == receipt['sha256']
+                    backup_ok = backup.is_file() and hashlib.sha256(backup.read_bytes()).hexdigest() == receipt['sha256']
+                    if original_ok and not backup_ok:
+                        shutil.copy2(original, backup)
+                    elif backup_ok and not original_ok:
+                        shutil.copy2(backup, original)
+                    elif not original_ok:
+                        raise Problem('原始凭证及其副本均缺失或损坏，请从其他完整备份恢复：' + name)
 
     @staticmethod
     def _atomic_json(path, value):
@@ -638,6 +651,7 @@ class Store(Restaurant):
         return ('\ufeff' + out.getvalue()).encode('utf-8')
 
     def backup_file(self):
+        from .trial import MARKER, SIGNATURE, is_trial
         with self.lock:
             self.recover_backups()
             self._backup()
@@ -655,7 +669,11 @@ class Store(Restaurant):
                     path = self.root / filename
                     if path.is_file():
                         archive.write(path, filename)
-                archive.writestr('README.txt', '本地账本备份：ledger.sqlite3为数据库；receipts为原始凭证；backups/records为逐笔变更备份。恢复前退出程序，将解压内容放入一个新的数据目录，再使用 --data-dir 指定它。\n')
+                instructions = '本地账本备份：ledger.sqlite3为数据库；receipts为原始凭证；backups/records为逐笔变更备份。恢复前退出程序，将解压内容放入一个新的数据目录，再使用 --data-dir 指定它。\n'
+                if is_trial(self.root):
+                    archive.writestr(MARKER, json.dumps(SIGNATURE))
+                    instructions += '这是模拟测试账本。请保留.test-ledger.json标记；使用 --test-mode --data-dir 指定恢复目录启动，页面仍应显示模拟账本标识。\n'
+                archive.writestr('README.txt', instructions)
             return out
 
     def export_backup(self):

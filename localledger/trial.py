@@ -12,16 +12,19 @@ MARKER = '.test-ledger.json'
 SIGNATURE = {'kind': 'local-ledger-synthetic-trial', 'version': 1}
 
 
+def is_trial(directory):
+    try:
+        return json.loads((Path(directory) / MARKER).read_text(encoding='utf-8')) == SIGNATURE
+    except (OSError, ValueError):
+        return False
+
+
 def prepare_trial(directory):
     root = Path(directory).resolve()
     if root.exists() and not root.is_dir():
         raise Problem('测试数据位置必须是新的空目录或已标记的测试目录')
     if root.exists() and any(root.iterdir()):
-        try:
-            marked = json.loads((root / MARKER).read_text(encoding='utf-8')) == SIGNATURE
-        except (OSError, ValueError):
-            marked = False
-        if not marked or not (root / 'ledger.sqlite3').is_file():
+        if not is_trial(root) or not (root / 'ledger.sqlite3').is_file():
             raise Problem('测试版拒绝打开已有的非测试目录，请使用新的空目录；正式账本不会被改动')
         return root
     root.parent.mkdir(parents=True, exist_ok=True)

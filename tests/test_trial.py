@@ -1,12 +1,60 @@
 from pathlib import Path
+import io
 import tempfile
 import unittest
+import zipfile
 
 from localledger.server import Application
 from localledger.store import Problem, Store
+from test_store import PNG
 
 
 class TrialCase(unittest.TestCase):
+    def test_exported_trial_restores_mode_originals_and_business_state(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = Application(root / 'source', test_mode=True)
+            try:
+                receipt = app.store.save_receipt('测试凭证.png', PNG)['id']
+                app.store.set_ocr(receipt, '', [{'kind': 'expense', 'amount': '1.23'}], '')
+                dish = next(x for x in app.store.menu() if x['barcode'] == '1001')
+                app.store.checkout({'items': [{'menu_id': dish['id'], 'quantity': 1, 'expected_price_cents': 1800}],
+                                    'expected_total_cents': 1800, 'payment_method': 'cash', 'payment_confirmed': True,
+                                    'account_id': 'cash', 'occurred_at': '2026-10-20 12:00',
+                                    'idempotency_key': 'restore-trial-sale'})
+                expected = {name: getattr(app.store, name)() for name in ['transactions', 'products', 'menu', 'orders', 'shop', 'receipts']}
+                ledger_id = app.store.ledger_id
+                bundle = app.store.export_backup()
+            finally:
+                app.close()
+            restored_root = root / 'restored'
+            with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
+                self.assertIn('.test-ledger.json', archive.namelist())
+                archive.extractall(restored_root)
+            # Forgetting --test-mode must still label a restored test ledger.
+            restored = Application(restored_root)
+            try:
+                self.assertTrue(restored.test_mode)
+                self.assertEqual(restored.store.ledger_id, ledger_id)
+                for name, rows in expected.items():
+                    self.assertEqual(getattr(restored.store, name)(), rows, name)
+                self.assertEqual(restored.store.receipt_path(receipt).read_bytes(), PNG)
+                self.assertEqual(restored.store.backup_status()['record_backup_count'], restored.store.backup_status()['event_count'])
+            finally:
+                restored.close()
+            restored = Application(restored_root, test_mode=True)
+            restored.close()
+
+    def test_ordinary_backup_does_not_gain_trial_marker(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Application(directory)
+            try:
+                with zipfile.ZipFile(io.BytesIO(app.store.export_backup())) as archive:
+                    self.assertNotIn('.test-ledger.json', archive.namelist())
+                self.assertFalse(app.test_mode)
+            finally:
+                app.close()
+
     def test_seeds_once_and_preserves_changes_on_restart(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'trial'

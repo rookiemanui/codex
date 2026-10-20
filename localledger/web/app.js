@@ -46,6 +46,7 @@ const state = {
   poll: null,
   searchTimer: null,
   transactionRequest: 0,
+  reviewEdits: new Map(),
 };
 let modalContext = null;
 const iconPaths = {
@@ -740,6 +741,14 @@ async function receiptsPage() {
 async function receiptReview(key) {
   const row = await api(`/api/receipts/${key}`);
   state.refundOptions = await api("/api/transactions");
+  for (const draft of row.drafts) {
+    const cacheKey = `${state.ledgerId}:${key}:${draft.id}`;
+    if (draft.status === "posted") state.reviewEdits.delete(cacheKey);
+    else {
+      const saved = state.reviewEdits.get(cacheKey);
+      if (saved) draft.data = { ...draft.data, ...saved.values };
+    }
+  }
   $("#content").innerHTML =
     header(
       "核对截图账单",
@@ -752,9 +761,10 @@ async function receiptReview(key) {
           `<section class="review-card"><div class="review-head"><h3>第 ${index + 1} 笔账单</h3><span class="tag ${draft.status === "posted" ? "good" : "warn"}">${draft.status === "posted" ? "已入账" : "待核对"}</span></div>${
             draft.status === "posted"
               ? `<p class="secondary">本笔已经入账并备份，不会因为重新上传相同原图再次新增。</p>`
-              : `${draft.data.notes?.length ? `<div class="review-notes">${draft.data.notes.map((note) => `<p>${esc(note)}</p>`).join("")}</div>` : ""}<form data-draft="${draft.id}"><label class="form-field" style="margin-bottom:16px"><span>收支方向</span><select name="kind" class="draft-kind">${Object.entries(
+              : `${draft.data.notes?.length ? `<div class="review-notes">${draft.data.notes.map((note) => `<p>${esc(note)}</p>`).join("")}</div>` : ""}<form data-draft="${draft.id}" data-receipt="${key}" novalidate><label class="form-field" style="margin-bottom:16px"><span>收支方向</span><select name="kind" class="draft-kind">${Object.entries(
                   kindNames,
                 )
+                  .filter(([k]) => k !== "sale_refund")
                   .map(
                     ([k, n]) =>
                       `<option value="${k}"${k === (draft.data.kind || "expense") ? " selected" : ""}>${n}</option>`,
@@ -766,16 +776,23 @@ async function receiptReview(key) {
       )
       .join(
         "",
-      )}<p class="note">系统不会仅凭相同金额合并交易。请逐笔核对；同一张截图可以保留多笔交易。</p></div></div>`;
+      )}<p class="note">系统不会仅凭相同金额合并交易。请逐笔核对；同一张截图可以保留多笔交易。销售退款请从销售小票选择原单办理退单。</p></div></div>`;
   $("#back-receipts").onclick = () => {
     state.selectedReceipt = null;
     render();
   };
   $$("[data-draft]").forEach((form) => {
     const id = form.dataset.draft;
+    const cached = state.reviewEdits.get(`${state.ledgerId}:${key}:${id}`);
+    form.reviewKinds = cached?.kinds || {};
+    form.dataset.kind = $("[name=kind]", form).value;
+    if (cached?.values.learn === "yes" && $("[name=learn]", form))
+      $("[name=learn]", form).checked = true;
     const idem = uid();
     form.onsubmit = async (e) => {
       e.preventDefault();
+      if (!validateEntryForm(form)) return;
+      cacheReviewForm(form);
       const button = $("button[type=submit]", form);
       button.disabled = true;
       try {
@@ -786,6 +803,7 @@ async function receiptReview(key) {
           idempotency_key: idem,
         });
         backupNotice(result, "本笔已入账，原图和逐笔记录已备份");
+        state.reviewEdits.delete(`${state.ledgerId}:${key}:${id}`);
         await render();
       } catch (error) {
         $(".form-error", form).textContent = error.message;
@@ -803,6 +821,15 @@ async function receiptReview(key) {
         clearInterval(state.poll);
       }
     }, 2200);
+}
+function cacheReviewForm(form) {
+  state.reviewEdits.set(
+    `${state.ledgerId}:${form.dataset.receipt}:${form.dataset.draft}`,
+    {
+      values: Object.fromEntries(new FormData(form)),
+      kinds: form.reviewKinds || {},
+    },
+  );
 }
 async function inventoryPage() {
   const [products, movements] = await Promise.all([
@@ -1012,32 +1039,57 @@ document.addEventListener("change", async (e) => {
   }
   if (e.target.matches(".draft-kind")) {
     const form = e.target.form;
-    const value = formData(form);
-    value.category_id = "";
+    const value = Object.fromEntries(new FormData(form));
+    const previous = form.dataset.kind;
+    form.reviewKinds[previous] = {};
+    for (const key of ["category_id", "to_account_id", "refund_of", "learn"]) {
+      if (key in value) form.reviewKinds[previous][key] = value[key];
+      value[key] = "";
+    }
+    Object.assign(value, form.reviewKinds[e.target.value]);
     $(".draft-fields", form).innerHTML = transactionFields(
       e.target.value,
       value,
     );
+    if (value.learn === "yes" && $("[name=learn]", form))
+      $("[name=learn]", form).checked = true;
+    form.dataset.kind = e.target.value;
     accessibleForms(form);
   }
   if (e.target.matches("input[name=purpose]")) {
     const form = e.target.form;
     const select = $("[name=category_id]", form);
     if (!select) return;
+    const purpose = e.target.value,
+      category = select.value;
     try {
       const rules = await api("/api/rules");
       const match = rules.find(
-        (rule) =>
-          rule.field === "purpose" && e.target.value.includes(rule.keyword),
+        (rule) => rule.field === "purpose" && purpose.includes(rule.keyword),
       );
       if (
+        form.isConnected &&
+        e.target.value === purpose &&
+        select.value === category &&
         match &&
         [...select.options].some((o) => o.value === match.category_id)
       )
         select.value = match.category_id;
+      if (form.matches("[data-draft]") && form.isConnected)
+        cacheReviewForm(form);
     } catch (error) {
       toast(error.message, true);
     }
+  }
+  if (e.target.form?.matches("[data-draft]")) cacheReviewForm(e.target.form);
+});
+document.addEventListener("input", (e) => {
+  if (e.target.form?.matches("[data-draft]")) cacheReviewForm(e.target.form);
+});
+window.addEventListener("beforeunload", (e) => {
+  if (state.reviewEdits.size || modalContext?.pending) {
+    e.preventDefault();
+    e.returnValue = "";
   }
 });
 document.addEventListener("keydown", (e) => {

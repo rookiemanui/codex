@@ -212,6 +212,28 @@ class LedgerCase(unittest.TestCase):
         restored = Store(destination)
         self.assertEqual(len(restored.transactions()), 1)
         self.assertEqual(restored.receipt_path(key).read_bytes(), PNG)
+        self.assertEqual((destination / 'backups/receipts' / restored.receipt_path(key).name).read_bytes(), PNG)
+
+    def test_corrupt_receipt_or_backup_is_repaired_from_intact_partner(self):
+        key = self.store.save_receipt('receipt.png', PNG)['id']
+        original = self.store.receipt_path(key)
+        backup = self.root / 'backups/receipts' / original.name
+        original.write_bytes(b'corrupted-original')
+        self.store.recover_backups()
+        self.assertEqual(original.read_bytes(), PNG)
+        backup.write_bytes(b'corrupted-backup')
+        self.store.recover_backups()
+        self.assertEqual(backup.read_bytes(), PNG)
+
+    def test_no_valid_receipt_prevents_claiming_complete_export(self):
+        key = self.store.save_receipt('receipt.png', PNG)['id']
+        original = self.store.receipt_path(key)
+        backup = self.root / 'backups/receipts' / original.name
+        original.unlink()
+        backup.unlink()
+        with self.assertRaisesRegex(Problem, '均缺失或损坏'):
+            self.store.export_backup()
+        self.assertTrue(self.store.receipt(key))
 
     def test_missing_record_backup_is_recovered_from_database_events(self):
         self.entry()

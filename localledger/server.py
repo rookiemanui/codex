@@ -18,6 +18,7 @@ from . import __version__
 from .access import load_password, verify_password, public_origin
 from .recognition import Recognizer, parse_payment
 from .store import Problem, Store
+from .trial import is_trial, prepare_trial
 
 
 STATIC = Path(__file__).resolve().parent / 'web'
@@ -25,9 +26,8 @@ STATIC = Path(__file__).resolve().parent / 'web'
 
 class Application:
     def __init__(self, directory, code=None, public_url=None, test_mode=False):
-        self.test_mode = test_mode
-        if test_mode:
-            from .trial import prepare_trial
+        self.test_mode = test_mode or is_trial(directory)
+        if self.test_mode:
             directory = prepare_trial(directory)
         self.public_url = public_origin(public_url)
         self.password = load_password(directory)
