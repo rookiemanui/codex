@@ -13,11 +13,33 @@ async function dailyCheckModal(day = dateInput().slice(0, 10), scope = "all") {
   );
   $("#check-scope").value = scope;
   $("#check-day").onchange = () => {
+    if (!allowChange()) return;
     if ($("#check-day").value)
       dailyCheckModal($("#check-day").value, $("#check-scope").value);
   };
-  $("#check-scope").onchange = () =>
-    dailyCheckModal($("#check-day").value, $("#check-scope").value);
+  $("#check-scope").onchange = () => {
+    if (allowChange())
+      dailyCheckModal($("#check-day").value, $("#check-scope").value);
+  };
+  function allowChange() {
+    if ($(".modal button[type=submit]:disabled")) {
+      $("#check-day").value = day;
+      $("#check-scope").value = scope;
+      toast("正在保存，请等待结果后切换核对范围");
+      return false;
+    }
+    if (
+      modalValues() !== modalContext.initial &&
+      !confirm("核对总额尚未保存，确定放弃并切换日期或账户？")
+    ) {
+      $("#check-day").value = day;
+      $("#check-scope").value = scope;
+      return false;
+    }
+    modalContext.edited = false;
+    modalContext.initial = modalValues();
+    return true;
+  }
   $$("[data-check-form]").forEach((form) => {
     const row = result.checks.find((x) => x.kind === form.dataset.checkForm);
     form.onsubmit = async (event) => {
@@ -33,6 +55,8 @@ async function dailyCheckModal(day = dateInput().slice(0, 10), scope = "all") {
           version: row.version,
         });
         backupNotice(saved, "已保存核对总额，没有重复入账");
+        modalContext.edited = false;
+        modalContext.initial = modalValues();
         await dailyCheckModal(day, scope);
       } catch (error) {
         $(".form-error", form).textContent = error.message;

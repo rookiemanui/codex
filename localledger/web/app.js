@@ -44,7 +44,10 @@ const state = {
   search: "",
   kindFilter: "all",
   poll: null,
+  searchTimer: null,
+  transactionRequest: 0,
 };
+let modalContext = null;
 const iconPaths = {
   grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
   book: '<path d="M5 4h15v17H6a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2Z"/><path d="M3 17h17M8 8h7M8 12h5"/>',
@@ -114,7 +117,7 @@ async function api(path, body) {
 function accessibleForms(root = document) {
   root.querySelectorAll("label.form-field").forEach((label) => {
     const control = label.querySelector(
-      "input:not([type=checkbox]), select, textarea",
+      "input:not([type=hidden]), select, textarea",
     );
     const title = label.querySelector(":scope > span");
     if (control && title && !control.hasAttribute("aria-label")) {
@@ -134,6 +137,7 @@ async function boot() {
     state.csrf = result.csrf;
     state.ledgerId = result.ledger_id;
     state.authMode = result.auth_mode;
+    state.testMode = result.test_mode;
     if (result.authenticated) {
       await shell();
     } else loginScreen();
@@ -145,7 +149,7 @@ async function boot() {
 }
 function loginScreen() {
   clearInterval(state.poll);
-  $("#modal-root").innerHTML = "";
+  closeModal();
   $("#app").innerHTML =
     `<div class="login-wrap"><form class="login-card" id="login-form"><div class="login-brand"><img src="/icon.svg" alt=""><strong>本地账本</strong></div><div class="eyebrow">YOUR SHOP, YOUR DATA</div><h1>连接店铺账本</h1><p>${state.authMode === "password" ? "输入你在电脑上设置的访问密码。" : "输入电脑启动窗口中的六位连接码；局域网外请使用配置的安全入口。"}</p><label class="form-field"><span>${state.authMode === "password" ? "访问密码" : "连接码"}</span><input class="code-input" id="access-code" name="code" ${state.authMode === "password" ? 'type="password" autocomplete="current-password" maxlength="256" aria-label="访问密码"' : 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" aria-label="六位连接码"'} required placeholder="······"></label><button class="primary full" type="submit">进入账本 ${icon("arrow")}</button><div class="form-error" id="login-error" role="alert"></div><small>${icon("shield")} 数据保存在电脑，无需云端账号</small></form></div>`;
   $("#login-form").onsubmit = async (e) => {
@@ -189,6 +193,7 @@ async function shell() {
   await render();
 }
 async function navigate(page) {
+  clearTimeout(state.searchTimer);
   state.page = page;
   state.selectedReceipt = null;
   state.kindFilter = "all";
@@ -200,7 +205,7 @@ function monthPicker() {
   return `<div class="month-picker"><button class="month-prev" aria-label="上个月">${icon("left")}</button><input type="month" value="${state.month}" aria-label="账目月份" id="month-select"><button class="month-next" aria-label="下个月">${icon("right")}</button></div>`;
 }
 function header(title, subtitle = "", buttons = "") {
-  return `<header class="topbar"><div><div class="eyebrow">LOCAL LEDGER / 小店经营</div><h1>${title}</h1>${subtitle ? `<p class="subtitle">${subtitle}</p>` : ""}</div><div class="actions">${buttons}</div></header>`;
+  return `${state.testMode ? '<div class="notice" role="status"><strong>本地测试版 · 模拟账本</strong>　数据保存在独立测试目录；可以练习记账、库存和收银。销售确认仅用于测试，不会发起真实扣款。</div>' : ""}<header class="topbar"><div><div class="eyebrow">LOCAL LEDGER / 小店经营</div><h1>${title}</h1>${subtitle ? `<p class="subtitle">${subtitle}</p>` : ""}</div><div class="actions">${buttons}</div></header>`;
 }
 function bindHeader() {
   if ($("#month-select")) {
@@ -333,9 +338,19 @@ async function overview() {
     modal("本月每日收支", dailyTable([...summary.days].reverse()), true);
 }
 async function transactionsPage() {
+  const request = ++state.transactionRequest;
+  const month = state.month,
+    search = state.search;
   const rows = await api(
-    `/api/transactions?month=${state.month}&search=${encodeURIComponent(state.search)}`,
+    `/api/transactions?month=${month}&search=${encodeURIComponent(search)}`,
   );
+  if (
+    state.page !== "transactions" ||
+    month !== state.month ||
+    search !== state.search ||
+    request !== state.transactionRequest
+  )
+    return;
   state.transactions = rows;
   $("#content").innerHTML =
     header(
@@ -363,16 +378,23 @@ async function transactionsPage() {
     );
     bindTx(rows);
   };
-  let timer;
   $("#tx-search").oninput = (e) => {
-    clearTimeout(timer);
+    clearTimeout(state.searchTimer);
     state.search = e.target.value;
-    timer = setTimeout(async () => {
+    state.searchTimer = setTimeout(async () => {
+      if (state.page !== "transactions" || !e.target.isConnected || $(".modal"))
+        return;
       const position = e.target.selectionStart;
-      await transactionsPage();
-      bindHeader();
-      $("#tx-search").focus();
-      $("#tx-search").setSelectionRange(position, position);
+      try {
+        await transactionsPage();
+        if (state.page !== "transactions" || $(".modal") || !$("#tx-search"))
+          return;
+        bindHeader();
+        $("#tx-search").focus();
+        $("#tx-search").setSelectionRange(position, position);
+      } catch (error) {
+        toast(error.message, true);
+      }
     }, 350);
   };
 }
@@ -419,52 +441,179 @@ function formData(form) {
   return value;
 }
 function modal(title, body, wide = false) {
+  clearTimeout(state.searchTimer);
+  if (modalContext)
+    modalContext.edited ||= modalValues() !== modalContext.initial;
+  else
+    modalContext = {
+      focus: document.activeElement,
+      overflow: document.body.style.overflow,
+      edited: false,
+    };
   $("#modal-root").innerHTML =
     `<div class="modal-backdrop"><section class="modal${wide ? " wide-modal" : ""}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-head"><h2>${esc(title)}</h2><button class="quiet icon-button" id="close-modal" aria-label="关闭">${icon("close")}</button></div><div class="modal-body">${body}</div></section></div>`;
-  $("#close-modal").onclick = closeModal;
+  $("#app").inert = true;
+  document.body.style.overflow = "hidden";
+  const dialog = $(".modal");
+  modalContext.initial = modalValues();
+  // Some dialogs add recipe fields synchronously after modal() returns.
+  queueMicrotask(() => {
+    if (dialog === $(".modal") && modalContext)
+      modalContext.initial = modalValues();
+  });
+  $("#close-modal").onclick = requestCloseModal;
   accessibleForms($("#modal-root"));
   $(".modal-backdrop").onclick = (e) => {
-    if (e.target === e.currentTarget) closeModal();
+    if (e.target === e.currentTarget) requestCloseModal();
   };
-  const first = $("input:not([type=hidden])", $(".modal-body"));
+  const first = $("input:not([type=hidden]), select, button", $(".modal-body"));
   if (first) first.focus();
 }
-function closeModal() {
-  $("#modal-root").innerHTML = "";
+function modalValues() {
+  return JSON.stringify(
+    $$("form input,form select,form textarea", $("#modal-root")).map((el) => [
+      el.name,
+      el.value,
+      el.checked,
+    ]),
+  );
 }
-async function entryModal(kind = "expense", defaults = {}) {
-  if (kind === "refund") state.refundOptions = await api("/api/transactions");
+function requestCloseModal() {
+  if (!modalContext) return;
+  if (modalContext.pending)
+    return toast("请先核实上次保存结果，避免重复记账", true);
+  if ($(".modal button[type=submit]:disabled"))
+    return toast("正在保存，请等待结果后再关闭");
+  if (
+    (modalContext.edited || modalValues() !== modalContext.initial) &&
+    !confirm("尚有未保存的内容，确定放弃并关闭？")
+  )
+    return;
+  closeModal();
+}
+function closeModal() {
+  if (!modalContext) return;
+  const previous = modalContext;
+  modalContext = null;
+  $("#modal-root").innerHTML = "";
+  $("#app").inert = false;
+  document.body.style.overflow = previous.overflow;
+  if (previous.focus?.isConnected) previous.focus.focus();
+}
+function validateEntryForm(form) {
+  const invalid = [...form.elements].find(
+    (el) => el.willValidate && !el.checkValidity(),
+  );
+  if (!invalid) return true;
+  const name = invalid.getAttribute("aria-label") || "必填内容";
+  $(".form-error", form).textContent = invalid.validity.valueMissing
+    ? `请填写或选择${name}`
+    : name === "金额（元）"
+      ? "金额须大于0，最多两位小数，例如20.50"
+      : `请检查${name}：${invalid.validationMessage}`;
+  invalid.focus();
+  return false;
+}
+async function entryModal(kind = "expense", defaults = {}, draft = null) {
+  if (kind === "refund") {
+    const previous = $(".modal");
+    const body = previous && $(".modal-body", previous);
+    if (body) body.inert = true;
+    try {
+      state.refundOptions = await api("/api/transactions");
+      if (previous && previous !== $(".modal")) return;
+    } catch (error) {
+      toast(error.message, true);
+      return;
+    } finally {
+      if (body) body.inert = false;
+    }
+  }
+  draft ||= { common: defaults, kinds: {} };
+  const values = {
+    occurred_at: dateInput(),
+    ...draft.common,
+    ...draft.kinds[kind],
+  };
   const idem = uid();
   modal(
     "记一笔",
     `<div class="kind-tabs">${Object.entries(kindNames)
+      .filter(([key]) => key !== "sale_refund")
       .map(
         ([k, v]) =>
           `<button type="button" data-kind="${k}" class="${kind === k ? "active" : ""}">${v}</button>`,
       )
       .join(
         "",
-      )}</div><form id="entry-form">${transactionFields(kind, { occurred_at: dateInput(), ...defaults })}<div class="form-error" role="alert"></div><div class="form-footer"><button type="button" class="cancel-modal">取消</button><button class="primary" type="submit">${icon("check")} 保存并备份</button></div></form>`,
+      )}</div><p class="note">销售退款请到“销售小票”选择原单办理退单。</p><form id="entry-form" novalidate><div class="form-error" id="entry-error" role="alert"></div>${transactionFields(kind, values)}<div class="form-footer"><button type="button" class="cancel-modal">取消</button><button class="primary" type="submit">${icon("check")} 保存并备份</button></div></form>`,
   );
+  const form = $("#entry-form");
+  let pending = null;
+  const controls = [...$$("input,select,button", form), ...$$("[data-kind]")];
+  if (values.learn === "yes" && $("[name=learn]", form))
+    $("[name=learn]", form).checked = true;
+  $$("input,select", form).forEach((el) =>
+    el.setAttribute("aria-describedby", "entry-error"),
+  );
+  $("[name=amount]", form).focus();
   $$("[data-kind]").forEach(
-    (el) => (el.onclick = () => entryModal(el.dataset.kind)),
+    (el) =>
+      (el.onclick = () => {
+        if (el.dataset.kind === kind || $("button[type=submit]", form).disabled)
+          return;
+        const value = Object.fromEntries(new FormData(form));
+        draft.kinds[kind] = value;
+        for (const key of [
+          "amount",
+          "occurred_at",
+          "purpose",
+          "account_id",
+          "merchant",
+          "reference",
+          "platform",
+          "time_precision",
+          "source_note",
+        ])
+          draft.common[key] = value[key];
+        // Type-specific fields must not overwrite the latest shared fields.
+        for (const key of Object.keys(draft.common))
+          delete draft.kinds[kind][key];
+        entryModal(el.dataset.kind, {}, draft);
+      }),
   );
-  $(".cancel-modal").onclick = closeModal;
+  $(".cancel-modal").onclick = requestCloseModal;
   $("#entry-form").onsubmit = async (e) => {
     e.preventDefault();
+    if (!pending && !validateEntryForm(e.target)) return;
     const button = $("button[type=submit]", e.target);
+    pending ||= { ...formData(e.target), kind, idempotency_key: idem };
+    controls.forEach((el) => {
+      el.disabled = true;
+    });
     button.disabled = true;
     try {
-      const result = await api("/api/transactions", {
-        ...formData(e.target),
-        kind,
-        idempotency_key: idem,
-      });
+      const result = await api("/api/transactions", pending);
       closeModal();
       backupNotice(result);
       await render();
+      $("[data-new-entry]")?.focus();
     } catch (error) {
-      $(".form-error", e.target).textContent = error.message;
+      if (!form.isConnected) return;
+      if (error.status && error.status < 500) {
+        pending = null;
+        modalContext.pending = false;
+        controls.forEach((el) => {
+          el.disabled = false;
+        });
+      } else {
+        modalContext.pending = true;
+        button.textContent = "核实上次保存并备份";
+      }
+      $(".form-error", e.target).textContent = pending
+        ? "保存结果尚未确认，请点“核实上次保存并备份”，请勿刷新、关页或重新开单。" +
+          error.message
+        : error.message;
     } finally {
       button.disabled = false;
     }
@@ -892,6 +1041,26 @@ document.addEventListener("change", async (e) => {
   }
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeModal();
+  const dialog = $(".modal");
+  if (!dialog) return;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    requestCloseModal();
+  }
+  if (e.key === "Tab") {
+    const controls = $$(
+      "button:not(:disabled),input:not(:disabled):not([type=hidden]),select:not(:disabled),textarea:not(:disabled),a[href]",
+      dialog,
+    ).filter((el) => !el.closest("[inert]") && el.getClientRects().length);
+    const first = controls[0],
+      last = controls.at(-1);
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last?.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first?.focus();
+    }
+  }
 });
 boot();

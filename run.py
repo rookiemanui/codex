@@ -18,15 +18,18 @@ from localledger.store import Problem
 def main():
     parser = argparse.ArgumentParser(description='本地账本：电脑存储，手机和电脑共用')
     program_directory = Path(sys.executable).resolve().parent if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent
-    parser.add_argument('--data-dir', default=os.environ.get('LOCAL_LEDGER_DATA', str(program_directory / 'data')))
+    parser.add_argument('--data-dir')
+    parser.add_argument('--test-mode', action='store_true', help='使用隔离的模拟测试账本，不打开正式data目录')
     parser.add_argument('--host', default=None)
     parser.add_argument('--public-url', help='HTTPS 反向代理域名；此模式只监听本机')
     parser.add_argument('--set-password', action='store_true', help='设置独立访问密码后退出')
-    parser.add_argument('--port', type=int, default=8765)
+    parser.add_argument('--port', type=int)
     parser.add_argument('--no-browser', action='store_true')
     parser.add_argument('--browser', choices=['system', 'chrome'], default='system', help='选择默认浏览器或Chrome')
     parser.add_argument('--chrome-path', help='Chrome安装位置（可选，自动检测失败时使用）')
     args = parser.parse_args()
+    args.data_dir = args.data_dir or (str(program_directory / 'test-data') if args.test_mode else os.environ.get('LOCAL_LEDGER_DATA', str(program_directory / 'data')))
+    args.port = args.port if args.port is not None else (8767 if args.test_mode else 8765)
     if args.set_password:
         first = getpass.getpass('设置访问密码（至少12位，不会显示）：')
         if first != getpass.getpass('再次输入密码：'):
@@ -44,7 +47,7 @@ def main():
             parser.error('未找到Chrome，请先安装，或用 --chrome-path 指定chrome.exe位置')
     args.host = args.host or ('127.0.0.1' if args.public_url else '0.0.0.0')
     try:
-        app = Application(args.data_dir, public_url=args.public_url)
+        app = Application(args.data_dir, public_url=args.public_url, test_mode=args.test_mode)
     except (Problem, ValueError) as exc:
         parser.error(str(exc))
     try:
@@ -55,6 +58,8 @@ def main():
         return 1
     port = server.server_address[1]
     print('\n本地账本已启动。所有数据保存到：' + str(app.store.root), flush=True)
+    if args.test_mode:
+        print('【本地测试版】模拟数据持久保存，可练习完整流程；不会发起真实支付。', flush=True)
     if not app.password:
         print('本次连接码：' + app.code, flush=True)
     else:

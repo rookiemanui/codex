@@ -24,7 +24,11 @@ STATIC = Path(__file__).resolve().parent / 'web'
 
 
 class Application:
-    def __init__(self, directory, code=None, public_url=None):
+    def __init__(self, directory, code=None, public_url=None, test_mode=False):
+        self.test_mode = test_mode
+        if test_mode:
+            from .trial import prepare_trial
+            directory = prepare_trial(directory)
         self.public_url = public_origin(public_url)
         self.password = load_password(directory)
         if self.public_url and not self.password:
@@ -144,7 +148,7 @@ def make_server(application, host='127.0.0.1', port=8765):
                 if path == '/api/status':
                     session = application.session(self.headers.get('Cookie'))
                     self.send({'authenticated': bool(session), 'csrf': session['csrf'] if session else '',
-                               'ledger_id': application.store.ledger_id if session else None, 'version': __version__, 'auth_mode': 'password' if application.password else 'code'})
+                               'ledger_id': application.store.ledger_id if session else None, 'version': __version__, 'auth_mode': 'password' if application.password else 'code', 'test_mode': application.test_mode})
                     return
                 if not path.startswith('/api/'):
                     files = {'/': 'index.html', '/app.js': 'app.js', '/pos.js': 'pos.js', '/checks.js': 'checks.js', '/style.css': 'style.css', '/icon.svg': 'icon.svg'}

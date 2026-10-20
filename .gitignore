@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 data/
+test-data/
 dist/
 build/
 *.spec
