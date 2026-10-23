@@ -152,7 +152,7 @@ function loginScreen() {
   clearInterval(state.poll);
   closeModal();
   $("#app").innerHTML =
-    `<div class="login-wrap"><form class="login-card" id="login-form"><div class="login-brand"><img src="/icon.svg" alt=""><strong>本地账本</strong></div><div class="eyebrow">YOUR SHOP, YOUR DATA</div><h1>连接店铺账本</h1><p>${state.authMode === "password" ? "输入你在电脑上设置的访问密码。" : "输入电脑启动窗口中的六位连接码；局域网外请使用配置的安全入口。"}</p><label class="form-field"><span>${state.authMode === "password" ? "访问密码" : "连接码"}</span><input class="code-input" id="access-code" name="code" ${state.authMode === "password" ? 'type="password" autocomplete="current-password" maxlength="256" aria-label="访问密码"' : 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" aria-label="六位连接码"'} required placeholder="······"></label><button class="primary full" type="submit">进入账本 ${icon("arrow")}</button><div class="form-error" id="login-error" role="alert"></div><small>${icon("shield")} 数据保存在电脑，无需云端账号</small></form></div>`;
+    `<div class="login-wrap"><form class="login-card" id="login-form"><div class="login-brand"><img src="/icon.svg" alt=""><strong>档口账本</strong></div><div class="eyebrow">YOUR SHOP, YOUR DATA</div><h1>连接店铺账本</h1><p>${state.authMode === "password" ? "输入你在电脑上设置的访问密码。" : "输入电脑启动窗口中的六位连接码；局域网外请使用配置的安全入口。"}</p><label class="form-field"><span>${state.authMode === "password" ? "访问密码" : "连接码"}</span><input class="code-input" id="access-code" name="code" ${state.authMode === "password" ? 'type="password" autocomplete="current-password" maxlength="256" aria-label="访问密码"' : 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" aria-label="六位连接码"'} required placeholder="······"></label><button class="primary full" type="submit">进入账本 ${icon("arrow")}</button><div class="form-error" id="login-error" role="alert"></div><small>${icon("shield")} 数据保存在电脑，无需云端账号</small></form></div>`;
   $("#login-form").onsubmit = async (e) => {
     e.preventDefault();
     const button = $("button[type=submit]", e.target);
@@ -171,7 +171,7 @@ function loginScreen() {
 async function shell() {
   state.options = await api("/api/options");
   $("#app").innerHTML =
-    `<div class="shell"><aside class="sidebar"><div class="brand"><img src="/icon.svg" alt=""><div><strong>本地账本</strong><small>LOCAL LEDGER</small></div></div><nav class="nav" aria-label="主导航">${[
+    `<div class="shell"><aside class="sidebar"><div class="brand"><img src="/icon.svg" alt=""><div><strong>档口账本</strong><small>LOCAL LEDGER</small></div></div><nav class="nav" aria-label="主导航">${[
       ["overview", "grid", "总览"],
       ["pos", "wallet", "餐饮收银"],
       ["orders", "book", "销售小票"],
@@ -187,7 +187,7 @@ async function shell() {
       )
       .join(
         "",
-      )}</nav><div class="sidebar-foot"><span class="local-dot"></span><span style="font-size:12px">数据留在本机</span><p>一笔一备份，经营更安心。</p></div></aside><main class="main"><div class="mobile-brand"><img src="/icon.svg" alt="">本地账本</div><div id="content"></div></main></div>`;
+      )}</nav><div class="sidebar-foot"><span class="local-dot"></span><span style="font-size:12px">数据留在本机</span><p>一笔一备份，经营更安心。</p></div></aside><main class="main"><div class="mobile-brand"><img src="/icon.svg" alt="">档口账本</div><div id="content"></div></main></div>`;
   $$("[data-page]").forEach(
     (el) => (el.onclick = () => navigate(el.dataset.page)),
   );
@@ -244,7 +244,7 @@ async function render() {
   const el = $("#content");
   if (!el) return;
   el.innerHTML =
-    '<div class="loading"><span class="spinner"></span>正在读取本地账本…</div>';
+    '<div class="loading"><span class="spinner"></span>正在读取档口账本…</div>';
   try {
     if (state.page === "overview") await overview();
     else if (state.page === "transactions") await transactionsPage();
@@ -296,7 +296,7 @@ function bindDrop() {
   };
 }
 function txTable(rows, compact = false) {
-  return `<div class="table-wrap"><table><thead><tr><th>用途 / 商户</th><th${compact ? ' class="mobile-hide"' : ""}>类目</th><th class="mobile-hide">账户</th><th class="mobile-hide">时间</th><th class="amount">金额</th></tr></thead><tbody>${rows.length ? rows.map((row) => `<tr class="clickable" data-tx="${row.id}"${row.voided_at ? ' style="opacity:.45"' : ""}><td><div class="tx-main"><span class="category-icon ${row.kind}">${icon(row.kind)}</span><div><strong>${esc(row.purpose || row.merchant || kindNames[row.kind])}</strong><div class="secondary">${esc(row.merchant || row.occurred_at.slice(0, 16))}${row.voided_at ? " · 已作废" : ""}${row.receipt_id ? " · 附原图" : ""}</div></div></td><td${compact ? ' class="mobile-hide"' : ""}><span class="tag">${esc(row.category_name || kindNames[row.kind])}</span></td><td class="mobile-hide">${esc(row.account_name)}${row.to_account_name ? " → " + esc(row.to_account_name) : ""}</td><td class="mobile-hide">${esc(row.occurred_at.slice(5, 16))}</td><td class="amount ${row.kind}">${["expense", "sale_refund"].includes(row.kind) ? "−" : row.kind === "transfer" ? "" : "+"} ¥${cash(row.amount_cents)}</td></tr>`).join("") : `<tr><td colspan="5" class="empty-row"><div class="empty-icon">${icon("book")}</div><strong>这里会留下店铺的每一笔账</strong><p>导入一张截图，或点击“记一笔”开始。</p></td></tr>`}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="transaction-table"><thead><tr><th>用途 / 商户</th><th${compact ? ' class="mobile-hide"' : ""}>类目</th><th class="mobile-hide">账户</th><th class="mobile-hide">时间</th><th class="amount">金额</th></tr></thead><tbody>${rows.length ? rows.map((row) => `<tr class="clickable" data-tx="${row.id}"${row.voided_at ? ' style="opacity:.45"' : ""}><td><div class="tx-main"><span class="category-icon ${row.kind}">${icon(row.kind)}</span><div><strong>${esc(row.purpose || row.merchant || kindNames[row.kind])}</strong><div class="secondary">${esc(row.merchant || row.occurred_at.slice(0, 16))}${row.voided_at ? " · 已作废" : ""}${row.receipt_id ? " · 附原图" : ""}</div></div></td><td${compact ? ' class="mobile-hide"' : ""}><span class="tag">${esc(row.category_name || kindNames[row.kind])}</span></td><td class="mobile-hide">${esc(row.account_name)}${row.to_account_name ? " → " + esc(row.to_account_name) : ""}</td><td class="mobile-hide">${esc(row.occurred_at.slice(5, 16))}</td><td class="amount ${row.kind}">${["expense", "sale_refund"].includes(row.kind) ? "−" : row.kind === "transfer" ? "" : "+"} ¥${cash(row.amount_cents)}</td></tr>`).join("") : `<tr><td colspan="5" class="empty-row"><div class="empty-icon">${icon("book")}</div><strong>这里会留下店铺的每一笔账</strong><p>导入一张截图，或点击“记一笔”开始。</p></td></tr>`}</tbody></table></div>`;
 }
 function bindTx(rows) {
   $$("[data-tx]").forEach(
@@ -306,7 +306,7 @@ function bindTx(rows) {
   );
 }
 function dailyTable(days) {
-  return `<div class="table-wrap"><table><thead><tr><th>日期</th><th class="amount">收入</th><th class="amount">净支出</th><th class="amount">收支结余</th></tr></thead><tbody>${days.length ? days.map((day) => `<tr><td>${esc(day.date.slice(5))}</td><td class="amount income">¥${cash(day.income_cents)}</td><td class="amount">¥${cash(day.expense_cents)}</td><td class="amount">¥${cash(day.income_cents - day.expense_cents)}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-row">记录收支后，这里会按天汇总。</td></tr>'}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="transaction-table"><thead><tr><th>日期</th><th class="amount">收入</th><th class="amount">净支出</th><th class="amount">收支结余</th></tr></thead><tbody>${days.length ? days.map((day) => `<tr><td>${esc(day.date.slice(5))}</td><td class="amount income">¥${cash(day.income_cents)}</td><td class="amount">¥${cash(day.expense_cents)}</td><td class="amount">¥${cash(day.income_cents - day.expense_cents)}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-row">记录收支后，这里会按天汇总。</td></tr>'}</tbody></table></div>`;
 }
 async function overview() {
   const [summary, rows] = await Promise.all([
@@ -412,13 +412,13 @@ function categoryOptions(kind, selected = "", blank = true) {
     .join("")}`;
 }
 function transactionFields(kind = "expense", value = {}) {
-  return `<div class="form-grid"><label class="form-field"><span>金额（元）</span><input name="amount" inputmode="decimal" type="number" min="0.01" step="0.01" required placeholder="0.00" value="${esc(value.amount || "")}"></label><label class="form-field"><span>交易时间</span><input name="occurred_at" type="datetime-local" step="1" required value="${esc((value.occurred_at || "").replace(" ", "T"))}"></label><label class="form-field wide"><span>商品或用途</span><input name="purpose" placeholder="例如：猪肚鸡调料、采购饮料、顾客付款" value="${esc(value.purpose || "")}" maxlength="500"></label>${
-    kind === "refund"
-      ? `<label class="form-field wide"><span>关联原支出</span><select name="refund_of" required><option value="">选择需要退款的原账目</option>${
+  return `<div class="form-grid"><label class="form-field"><span>金额（元）</span><input name="amount" inputmode="decimal" type="number" min="0.01" step="0.01" required placeholder="0.00" value="${esc(value.amount || "")}"></label><label class="form-field"><span>交易时间</span><input name="occurred_at" type="datetime-local" step="1" required value="${esc((value.occurred_at || "").replace(" ", "T"))}"></label><label class="form-field wide"><span>商品或用途</span><input name="purpose" placeholder="例如：鸡肉、小酥肉原料、采购饮料、顾客付款" value="${esc(value.purpose || "")}" maxlength="500"></label>${
+    ["refund", "sale_refund"].includes(kind)
+      ? `<label class="form-field wide"><span>关联原${kind === "sale_refund" ? "收入" : "支出"}</span><select name="refund_of" required><option value="">选择需要退款的原账目</option>${
           state.refundOptions
             ?.filter(
               (x) =>
-                x.kind === "expense" &&
+                x.kind === (kind === "sale_refund" ? "income" : "expense") &&
                 !x.voided_at &&
                 x.amount_cents > x.refunded_cents,
             )
@@ -516,7 +516,7 @@ function validateEntryForm(form) {
   return false;
 }
 async function entryModal(kind = "expense", defaults = {}, draft = null) {
-  if (kind === "refund") {
+  if (["refund", "sale_refund"].includes(kind)) {
     const previous = $(".modal");
     const body = previous && $(".modal-body", previous);
     if (body) body.inert = true;
@@ -540,14 +540,14 @@ async function entryModal(kind = "expense", defaults = {}, draft = null) {
   modal(
     "记一笔",
     `<div class="kind-tabs">${Object.entries(kindNames)
-      .filter(([key]) => key !== "sale_refund")
+      .filter(([key]) => key !== "sale_refund" || kind === "sale_refund")
       .map(
         ([k, v]) =>
           `<button type="button" data-kind="${k}" class="${kind === k ? "active" : ""}">${v}</button>`,
       )
       .join(
         "",
-      )}</div><p class="note">销售退款请到“销售小票”选择原单办理退单。</p><form id="entry-form" novalidate><div class="form-error" id="entry-error" role="alert"></div>${transactionFields(kind, values)}<div class="form-footer"><button type="button" class="cancel-modal">取消</button><button class="primary" type="submit">${icon("check")} 保存并备份</button></div></form>`,
+      )}</div><p class="note">手录收入的退款，请从原收入详情办理；收银订单请到“销售小票”退单。</p><form id="entry-form" novalidate><div class="form-error" id="entry-error" role="alert"></div>${transactionFields(kind, values)}<div class="form-footer"><button type="button" class="cancel-modal">取消</button><button class="primary" type="submit">${icon("check")} 保存并备份</button></div></form>`,
   );
   const form = $("#entry-form");
   let pending = null;
@@ -601,7 +601,7 @@ async function entryModal(kind = "expense", defaults = {}, draft = null) {
       $("[data-new-entry]")?.focus();
     } catch (error) {
       if (!form.isConnected) return;
-      if (error.status && error.status < 500) {
+      if (error.status === 400) {
         pending = null;
         modalContext.pending = false;
         controls.forEach((el) => {
@@ -623,7 +623,7 @@ async function entryModal(kind = "expense", defaults = {}, draft = null) {
 async function detailModal(row) {
   modal(
     "账目详情",
-    `<div class="detail-amount">${["expense", "sale_refund"].includes(row.kind) ? "−" : row.kind === "transfer" ? "" : "+"} ¥${cash(row.amount_cents)}</div><dl class="detail-list"><dt>交易类型</dt><dd>${kindNames[row.kind]}${row.voided_at ? " · 已作废" : ""}</dd><dt>用途</dt><dd>${esc(row.purpose || "未填写")}</dd><dt>交易时间</dt><dd>${esc(row.time_precision === "minute" ? row.occurred_at.slice(0, 16) : row.time_precision === "date" ? row.occurred_at.slice(0, 10) : row.occurred_at)}</dd><dt>时间精度</dt><dd>${{ minute: "记录精确到分钟", second: "记录精确到秒", date: "仅提供日期", unknown: "来源未标注精度" }[row.time_precision] || "来源未标注精度"}</dd><dt>账户</dt><dd>${esc(row.account_name)}${row.to_account_name ? " → " + esc(row.to_account_name) : ""}</dd><dt>商户</dt><dd>${esc(row.merchant || "未填写")}</dd><dt>交易单号</dt><dd>${esc(row.reference || "未提供")}</dd><dt>已退金额</dt><dd>¥${cash(row.refunded_cents)}</dd><dt>原始凭证</dt><dd>${row.receipt_id ? "已保留原图" : "本笔未附原图"}</dd></dl>${row.source_note ? `<div class="detail-section"><h3>来源说明</h3><p class="secondary" style="white-space:pre-wrap">${esc(row.source_note)}</p></div>` : ""}${row.receipt_id ? `<div class="detail-section detail-receipt"><h3>原始截图</h3><img src="/api/receipts/${row.receipt_id}/file" alt="本笔账目的原始凭证"></div>` : ""}${!row.voided_at && ["expense", "income"].includes(row.kind) ? `<div class="detail-section"><h3>修正用途或分类</h3><form id="reclassify-form"><div class="form-grid"><label class="form-field wide"><span>用途</span><input name="purpose" value="${esc(row.purpose)}"></label><label class="form-field wide"><span>类目</span><select name="category_id" required>${categoryOptions(row.kind, row.category_id)}</select></label><label class="check-line form-field wide"><span><input type="checkbox" name="learn" value="yes"> 记住这个用途关键词</span></label></div><div class="form-error" role="alert"></div><div class="form-footer"><button class="primary small" type="submit">保存修改与备份</button></div></form></div>` : ""}${!row.voided_at ? `<div class="detail-section"><div class="form-footer">${row.kind === "expense" && row.amount_cents > row.refunded_cents ? `<button id="refund-entry">登记退款</button>` : ""}<button class="danger" id="void-entry">作废此笔</button></div><p class="note">作废不会删除原始记录与备份。已关联退款或库存时，需要先核对关联记录。</p></div>` : ""}`,
+    `<div class="detail-amount">${["expense", "sale_refund"].includes(row.kind) ? "−" : row.kind === "transfer" ? "" : "+"} ¥${cash(row.amount_cents)}</div><dl class="detail-list"><dt>交易类型</dt><dd>${kindNames[row.kind]}${row.voided_at ? " · 已作废" : ""}</dd><dt>用途</dt><dd>${esc(row.purpose || "未填写")}</dd><dt>交易时间</dt><dd>${esc(row.time_precision === "minute" ? row.occurred_at.slice(0, 16) : row.time_precision === "date" ? row.occurred_at.slice(0, 10) : row.occurred_at)}</dd><dt>时间精度</dt><dd>${{ minute: "记录精确到分钟", second: "记录精确到秒", date: "仅提供日期", unknown: "来源未标注精度" }[row.time_precision] || "来源未标注精度"}</dd><dt>账户</dt><dd>${esc(row.account_name)}${row.to_account_name ? " → " + esc(row.to_account_name) : ""}</dd><dt>商户</dt><dd>${esc(row.merchant || "未填写")}</dd><dt>交易单号</dt><dd>${esc(row.reference || "未提供")}</dd><dt>已退金额</dt><dd>¥${cash(row.refunded_cents)}</dd><dt>原始凭证</dt><dd>${row.receipt_id ? "已保留原图" : "本笔未附原图"}</dd></dl>${row.source_note ? `<div class="detail-section"><h3>来源说明</h3><p class="secondary" style="white-space:pre-wrap">${esc(row.source_note)}</p></div>` : ""}${row.receipt_id ? `<div class="detail-section detail-receipt"><h3>原始截图</h3><img src="/api/receipts/${row.receipt_id}/file" alt="本笔账目的原始凭证"></div>` : ""}${!row.voided_at && ["expense", "income"].includes(row.kind) ? `<div class="detail-section"><h3>修正用途或分类</h3><form id="reclassify-form"><div class="form-grid"><label class="form-field wide"><span>用途</span><input name="purpose" value="${esc(row.purpose)}"></label><label class="form-field wide"><span>类目</span><select name="category_id" required>${categoryOptions(row.kind, row.category_id)}</select></label><label class="check-line form-field wide"><span><input type="checkbox" name="learn" value="yes"> 记住这个用途关键词</span></label></div><div class="form-error" role="alert"></div><div class="form-footer"><button class="primary small" type="submit">保存修改与备份</button></div></form></div>` : ""}${!row.voided_at ? `<div class="detail-section"><div class="form-footer">${["expense", "income"].includes(row.kind) && row.amount_cents > row.refunded_cents ? `<button id="refund-entry">登记退款</button>` : ""}<button class="danger" id="void-entry">作废此笔</button></div><p class="note">作废不会删除原始记录与备份。已关联退款或库存时，需要先核对关联记录。</p></div>` : ""}`,
   );
   if ($("#reclassify-form"))
     $("#reclassify-form").onsubmit = async (e) => {
@@ -646,7 +646,7 @@ async function detailModal(row) {
     };
   if ($("#refund-entry"))
     $("#refund-entry").onclick = () =>
-      entryModal("refund", {
+      entryModal(row.kind === "income" ? "sale_refund" : "refund", {
         refund_of: row.id,
         account_id: row.account_id,
         purpose: "退款：" + (row.purpose || row.merchant),
@@ -851,18 +851,41 @@ async function inventoryPage() {
             .slice(0, 5)
             .join("、")}${low.length > 5 ? "…" : ""}</div>`
         : ""
-    }<section class="panel"><div class="panel-head"><h2>当前库存</h2><small>${products.length} 个商品 / 原料</small></div><div class="table-wrap"><table><thead><tr><th>商品 / 原料</th><th>现有库存</th><th class="mobile-hide">补货线</th><th>操作</th></tr></thead><tbody>${products.length ? products.map((p) => `<tr><td><strong>${esc(p.name)}</strong><div class="secondary">${esc(p.sku)}</div></td><td class="${p.low ? "stock-low" : ""}">${esc(p.stock)} ${esc(p.unit)}${p.low ? ' <span class="tag warn">待补货</span>' : ""}</td><td class="mobile-hide">${esc(p.minimum)} ${esc(p.unit)}</td><td><div class="row-actions"><button class="small" data-stock="${p.id}" data-kind="in">入库</button><button class="small" data-stock="${p.id}" data-kind="out">出库</button><button class="small quiet" data-stock="${p.id}" data-kind="adjust">盘点</button></div></td></tr>`).join("") : '<tr><td colspan="4" class="empty-row"><div class="empty-icon">' + icon("box") + "</div><strong>先添加一个需要管理的商品或原料</strong><p>例如饮料、调料、食材，再登记入库或盘点数量。</p></td></tr>"}</tbody></table></div></section><section class="panel" style="margin-top:22px"><div class="panel-head"><h2>最近库存流水</h2><small>每次变动独立留档</small></div><div class="table-wrap"><table><thead><tr><th>商品 / 原料</th><th>动作</th><th>数量变动</th><th class="mobile-hide">说明 / 时间</th></tr></thead><tbody>${
+    }<section class="panel"><div class="panel-head"><h2>当前库存</h2><small>${products.length} 个商品 / 原料</small></div><div class="table-wrap"><table><thead><tr><th>商品 / 原料</th><th>现有库存</th><th class="mobile-hide">补货线</th><th>操作</th></tr></thead><tbody>${products.length ? products.map((p) => `<tr><td><strong>${esc(p.name)}</strong><div class="secondary">${esc(p.sku)}</div></td><td class="${p.low ? "stock-low" : ""}">${esc(p.stock)} ${esc(p.unit)}${p.low ? ' <span class="tag warn">待补货</span>' : ""}</td><td class="mobile-hide">${esc(p.minimum)} ${esc(p.unit)}</td><td><div class="row-actions"><button class="small" data-stock="${p.id}" data-kind="in">入库</button><button class="small" data-stock="${p.id}" data-kind="out">出库</button><button class="small quiet" data-stock="${p.id}" data-kind="adjust">盘点</button></div></td></tr>`).join("") : '<tr><td colspan="4" class="empty-row"><div class="empty-icon">' + icon("box") + "</div><strong>先添加一个需要管理的商品或原料</strong><p>例如鸡肉、小酥肉、食用油、打包盒，再登记入库或盘点数量。</p></td></tr>"}</tbody></table></div></section><section class="panel" style="margin-top:22px"><div class="panel-head"><h2>最近库存流水</h2><small>每次变动独立留档</small></div><div class="table-wrap"><table><thead><tr><th>商品 / 原料</th><th>动作</th><th>数量变动</th><th class="mobile-hide">说明 / 时间</th></tr></thead><tbody>${
       movements.length
         ? movements
             .slice(0, 30)
             .map(
               (m) =>
-                `<tr><td>${esc(m.name)}</td><td><span class="tag">${esc({ in: "入库", out: "出库", adjust: "盘点", loss: "损耗", customer_return: "顾客退货", supplier_return: "退供应商" }[m.kind])}</span></td><td>${m.delta_milli > 0 ? "+" : ""}${number(m.delta_milli)} ${esc(m.unit)}</td><td class="mobile-hide">${esc(m.note || "—")}<div class="secondary">${esc(m.occurred_at.slice(0, 16))}${m.transaction_id ? " · 已关联收支" : ""}</div></td></tr>`,
+                `<tr><td>${esc(m.name)}</td><td><span class="tag">${esc({ in: "入库", out: "出库", adjust: "盘点", loss: "损耗", customer_return: "顾客退货", supplier_return: "退供应商", reversal: "撤销" }[m.kind])}</span></td><td>${m.delta_milli > 0 ? "+" : ""}${number(m.delta_milli)} ${esc(m.unit)}</td><td class="mobile-hide">${esc(m.note || "—")}<div class="secondary">${esc(m.occurred_at.slice(0, 16))}${m.transaction_id ? " · 已关联收支" : ""}</div></td></tr>`,
             )
             .join("")
         : '<tr><td colspan="4" class="empty-row">还没有库存变动记录。</td></tr>'
     }</tbody></table></div></section>`;
   $("#new-product").onclick = productModal;
+  try {
+    if (readPendingInventory()) {
+      const notice = document.createElement("div");
+      notice.className = "notice";
+      notice.innerHTML = '上次库存操作结果待核实。 <button id="pending-inventory">核实上次操作</button>';
+      $("#content").prepend(notice);
+      $("#pending-inventory").onclick = retryPendingInventory;
+    }
+  } catch { toast("待核实记录无法读取，请保留浏览器数据。", true); }
+  const rows = $$("section.panel:last-child tbody tr", $("#content"));
+  movements.slice(0, 30).forEach((movement, index) => {
+    const cell = rows[index]?.cells[1];
+    if (!cell) return;
+    if (movement.reversed_by || movement.reversal_of) {
+      cell.append(document.createTextNode(movement.reversed_by ? " · 已撤销" : " · 撤销记录"));
+    } else if (!String(movement.idempotency_key || "").startsWith("sale:") && ["in", "out", "loss", "adjust", "customer_return", "supplier_return"].includes(movement.kind)) {
+      const button = document.createElement("button");
+      button.className = "small quiet";
+      button.textContent = "撤销录错";
+      button.onclick = () => reverseMovementModal(movement);
+      cell.append(button);
+    }
+  });
   $$("[data-stock]").forEach(
     (el) =>
       (el.onclick = () =>
@@ -875,82 +898,164 @@ async function inventoryPage() {
 function productModal() {
   modal(
     "新建商品 / 原料",
-    `<form id="product-form"><div class="form-grid"><label class="form-field wide"><span>名称</span><input name="name" required maxlength="100" placeholder="例如：猪肚鸡调料"></label><label class="form-field"><span>单位</span><input name="unit" value="件" required maxlength="20" placeholder="件、瓶、袋、千克"></label><label class="form-field"><span>补货线</span><input name="minimum" type="number" min="0" step="0.001" value="0" required></label><label class="form-field wide"><span>商品编码（选填）</span><input name="sku" placeholder="可填写条码或内部编码，留空自动生成" maxlength="100"></label></div><p class="note">新商品从零库存开始。已有库存请通过“盘点”登记，以便保留记录。</p><div class="form-error" role="alert"></div><div class="form-footer"><button class="primary" type="submit">创建并备份</button></div></form>`,
+    `<form id="product-form"><div class="form-grid"><label class="form-field wide"><span>名称</span><input name="name" required maxlength="100" placeholder="例如：鸡肉、小酥肉原料"></label><label class="form-field"><span>单位</span><input name="unit" value="件" required maxlength="20" placeholder="件、瓶、袋、千克"></label><label class="form-field"><span>补货线</span><input name="minimum" type="number" min="0" step="0.001" value="0" required></label><label class="form-field wide"><span>商品编码（选填）</span><input name="sku" placeholder="可填写条码或内部编码，留空自动生成" maxlength="100"></label></div><p class="note">新商品从零库存开始。已有库存请通过“盘点”登记，以便保留记录。</p><div class="form-error" role="alert"></div><div class="form-footer"><button class="primary" type="submit">创建并备份</button></div></form>`,
   );
   bindSimpleForm("#product-form", "/api/products");
 }
-function movementModal(product, kind) {
-  const title = {
-    in: "入库",
-    out: "出库",
-    adjust: "盘点",
-    loss: "损耗",
-    customer_return: "顾客退货",
-    supplier_return: "退供应商",
-  }[kind];
-  const txKind = kind === "in" ? "expense" : "income";
-  const idem = uid();
-  modal(
-    `${title} · ${product.name}`,
-    `<form id="movement-form"><div class="form-grid"><label class="form-field"><span>${kind === "adjust" ? "盘点后的实际数量" : "本次数量"}（${esc(product.unit)}）</span><input name="quantity" type="number" min="${kind === "adjust" ? "0" : "0.001"}" step="0.001" required placeholder="0" ${kind === "adjust" ? `value="${esc(product.stock)}"` : ""}></label><label class="form-field"><span>发生时间</span><input name="occurred_at" type="datetime-local" step="1" value="${dateInput()}" required></label><label class="form-field wide"><span>说明</span><input name="note" placeholder="例如：供应商送货、日常领用、盘点校正"></label>${
-      kind !== "adjust"
-        ? `<label class="form-field wide"><span>库存动作</span><select name="kind">${(kind ===
-          "in"
-            ? [
-                ["in", "采购 / 收货入库"],
-                ["customer_return", "顾客退货入库"],
-              ]
-            : [
-                ["out", "销售 / 领用出库"],
-                ["loss", "损耗出库"],
-                ["supplier_return", "退供应商"],
-              ]
-          )
-            .map(([k, n]) => `<option value="${k}">${n}</option>`)
-            .join("")}</select></label>`
-        : ""
-    }</div>${["in", "out"].includes(kind) ? `<div class="detail-section"><label class="check-line"><input type="checkbox" id="link-finance"> 同时新增一笔${kind === "in" ? "采购支出" : "销售收入"}</label><div id="linked-finance" hidden style="margin-top:17px"><div class="form-grid"><label class="form-field"><span>总金额（元）</span><input name="linked_amount" type="number" min="0.01" step="0.01" inputmode="decimal"></label><label class="form-field"><span>账户</span><select name="linked_account">${accountOptions("cash")}</select></label><label class="form-field wide"><span>收支类目</span><select name="linked_category">${categoryOptions(txKind, kind === "in" ? "purchase" : "sales", false)}</select></label></div><p class="note">仅在这笔收支尚未记过账时勾选；库存和账目将同时保存，任一失败都不会单独扣库存。</p></div></div>` : ""}<div class="form-error" role="alert"></div><div class="form-footer"><button class="primary" type="submit">确认${title}并备份</button></div></form>`,
-  );
-  if ($("#link-finance"))
-    $("#link-finance").onchange = (e) => {
-      $("#linked-finance").hidden = !e.target.checked;
-    };
-  $("#movement-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const button = $("button[type=submit]", e.target);
-    button.disabled = true;
+function pendingInventoryKey() {
+  return "ledger-pending-inventory:" + state.ledgerId;
+}
+function readPendingInventory() {
+  const raw = localStorage.getItem(pendingInventoryKey());
+  return raw ? JSON.parse(raw) : null;
+}
+async function retryPendingInventory() {
+  let pending;
+  try {
+    pending = readPendingInventory();
+    if (!pending) return;
+  } catch {
+    toast("待核实记录无法读取，请保留浏览器数据并联系维护人员。", true);
+    return;
+  }
+  modal("核实上次库存操作", '<p>上次操作结果尚未确认。将使用原来的内容核实，避免重复记录。</p><div class="form-error" role="alert"></div><button class="primary" id="retry-inventory">核实原请求</button>');
+  $("#retry-inventory").onclick = async (event) => {
+    event.target.disabled = true;
     try {
-      const fields = Object.fromEntries(new FormData(e.target));
-      const value = {
-        product_id: product.id,
-        kind: fields.kind || kind,
-        quantity: fields.quantity,
-        occurred_at: fields.occurred_at,
-        note: fields.note,
-        idempotency_key: idem,
-      };
-      if ($("#link-finance")?.checked) {
-        value.transaction = {
-          kind: txKind,
-          amount: fields.linked_amount,
-          account_id: fields.linked_account,
-          category_id: fields.linked_category,
-          occurred_at: fields.occurred_at,
-          purpose: `${title}：${product.name}`,
-          idempotency_key: idem,
-        };
-      }
-      const result = await api("/api/movements", value);
+      const result = await api(pending.path, pending.value);
+      localStorage.removeItem(pendingInventoryKey());
       closeModal();
       backupNotice(result);
       await render();
     } catch (error) {
-      $(".form-error", e.target).textContent = error.message;
+      $(".form-error", $("#modal-root")).textContent = error.message;
+      if (error.status === 400) {
+        localStorage.removeItem(pendingInventoryKey());
+        $(".form-error", $("#modal-root")).textContent += "。服务已拒绝此请求，请关闭后重新填写。";
+      }
+    } finally {
+      event.target.disabled = false;
+    }
+  };
+}
+function movementModal(product, kind) {
+  try {
+    if (readPendingInventory()) return retryPendingInventory();
+  } catch {
+    return toast("无法读取待核实库存记录，请检查浏览器存储。", true);
+  }
+  const title = {in: "入库", out: "出库", adjust: "盘点"}[kind];
+  const idem = uid();
+  modal(
+    title + " · " + product.name,
+    '<form id="movement-form"><div class="form-grid">' +
+    '<label class="form-field"><span>' + (kind === "adjust" ? "盘点后的实际数量" : "本次数量") + '（' + esc(product.unit) + '）</span><input name="quantity" type="number" min="' + (kind === "adjust" ? "0" : "0.001") + '" step="0.001" required placeholder="0"' + (kind === "adjust" ? ' value="' + esc(product.stock) + '"' : '') + '></label>' +
+    '<label class="form-field"><span>发生时间</span><input name="occurred_at" type="datetime-local" step="1" value="' + dateInput() + '" required></label>' +
+    '<label class="form-field wide"><span>说明</span><input name="note" placeholder="例如：鸡肉采购、日常领用、食材损耗"></label>' +
+    (kind !== "adjust" ? '<label class="form-field wide"><span>库存动作</span><select name="kind">' + (kind === "in" ? [["in", "采购 / 收货入库"], ["customer_return", "顾客退货入库"]] : [["out", "销售 / 领用出库"], ["loss", "损耗出库"], ["supplier_return", "退供应商"]]).map(([key, label]) => '<option value="' + key + '">' + label + '</option>').join("") + '</select></label>' : '<p class="note wide">当前库存 ' + esc(product.stock) + ' ' + esc(product.unit) + '。若另一人已修改库存，本次盘点会被拒绝，请刷新后重新核对。</p>') +
+    '</div>' +
+    (kind !== "adjust" ? '<div class="detail-section" id="finance-section"><label class="check-line"><input type="checkbox" id="link-finance"> <span id="finance-label"></span></label><div id="linked-finance" hidden><div class="form-grid"><label class="form-field"><span>总金额（元）</span><input name="linked_amount" type="number" min="0.01" step="0.01" inputmode="decimal"></label><label class="form-field"><span>账户</span><select name="linked_account">' + accountOptions("cash") + '</select></label><label class="form-field wide"><span>收支类目</span><select name="linked_category"></select></label></div><p class="note">仅在尚未记过这笔收支时勾选。库存和收支一起保存。</p></div></div><p class="note" id="movement-tip"></p>' : '') +
+    '<div class="form-error" role="alert"></div><div class="form-footer"><button class="primary" type="submit">确认' + title + '并备份</button></div></form>'
+  );
+  const form = $("#movement-form");
+  let pending = null;
+  const syncFinance = () => {
+    const action = form.elements.kind?.value || kind;
+    const supported = ["in", "out"].includes(action);
+    $("#finance-section").hidden = !supported;
+    $("#link-finance").checked = false;
+    $("#linked-finance").hidden = true;
+    form.elements.linked_amount.required = false;
+    $("#finance-label").textContent = "同时新增一笔" + (action === "in" ? "采购支出" : "销售收入");
+    form.elements.linked_category.innerHTML = categoryOptions(action === "in" ? "expense" : "income", action === "in" ? "ingredients" : "sales", false);
+    $("#movement-tip").textContent = {loss: "损耗只减少库存，不自动产生收支。", customer_return: "此处只登记退回的库存。款项请从原收入登记退款。", supplier_return: "此处只登记退回的库存。收到退款后，请从原采购支出登记退款。", out: "厨房领用只登记出库；只有确实收到且尚未记账的销售款才勾选收入。"}[action] || "";
+  };
+  if (kind !== "adjust") {
+    syncFinance();
+    form.elements.kind.onchange = syncFinance;
+    $("#link-finance").onchange = (e) => {
+      $("#linked-finance").hidden = !e.target.checked;
+      form.elements.linked_amount.required = e.target.checked;
+    };
+  }
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const button = $("button[type=submit]", form);
+    button.disabled = true;
+    try {
+      if (!pending) {
+        const fields = Object.fromEntries(new FormData(form));
+        const action = fields.kind || kind;
+        const value = {product_id: product.id, kind: action, quantity: fields.quantity, occurred_at: fields.occurred_at, note: fields.note, idempotency_key: idem};
+        if (action === "adjust") value.expected_stock_version = product.stock_version;
+        if ($("#link-finance")?.checked && ["in", "out"].includes(action)) {
+          value.transaction = {kind: action === "in" ? "expense" : "income", amount: fields.linked_amount, account_id: fields.linked_account, category_id: fields.linked_category, occurred_at: fields.occurred_at, purpose: title + "：" + product.name, idempotency_key: idem + "-entry"};
+        }
+        const request = {path: "/api/movements", value};
+        localStorage.setItem(pendingInventoryKey(), JSON.stringify(request));
+        pending = request;
+      }
+      $$("input,select", form).forEach((el) => el.disabled = true);
+      const result = await api(pending.path, pending.value);
+      localStorage.removeItem(pendingInventoryKey());
+      closeModal();
+      backupNotice(result);
+      await render();
+    } catch (error) {
+      $(".form-error", form).textContent = error.message;
+      if (error.status === 400) {
+        localStorage.removeItem(pendingInventoryKey());
+        pending = null;
+        $$("input,select", form).forEach((el) => el.disabled = false);
+      } else if (pending) {
+        $(".form-error", form).textContent += "。结果待核实，请重试原请求；关闭或刷新后也可在库存页继续核实。";
+        button.textContent = "核实原请求";
+      }
     } finally {
       button.disabled = false;
     }
   };
 }
+function reverseMovementModal(movement) {
+  try {
+    if (readPendingInventory()) return retryPendingInventory();
+  } catch {
+    return toast("无法读取待核实库存记录，请检查浏览器存储。", true);
+  }
+  const idem = uid();
+  let pending = null;
+  modal("撤销录错的库存记录", '<form id="reverse-movement-form"><p>将反向记录「' + esc(movement.name) + '」的这次库存变动' + (movement.transaction_id ? '，并作废关联收支' : '') + '。原记录仍会保留。已使用的库存可能无法撤销；实际退货请使用退货功能。</p><label class="form-field"><span>撤销原因</span><input name="reason" required maxlength="500" placeholder="例如：采购数量录错"></label><div class="form-error" role="alert"></div><div class="form-footer"><button class="primary" type="submit">确认撤销并备份</button></div></form>');
+  const form = $("#reverse-movement-form");
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const button = $("button", form);
+    button.disabled = true;
+    try {
+      if (!pending) {
+        const request = {path: "/api/movements/" + movement.id + "/reverse", value: {reason: form.elements.reason.value, idempotency_key: idem}};
+        localStorage.setItem(pendingInventoryKey(), JSON.stringify(request));
+        pending = request;
+      }
+      form.elements.reason.disabled = true;
+      const result = await api(pending.path, pending.value);
+      localStorage.removeItem(pendingInventoryKey());
+      closeModal();
+      backupNotice(result);
+      await render();
+    } catch (error) {
+      $(".form-error", form).textContent = error.message;
+      if (error.status === 400) {
+        localStorage.removeItem(pendingInventoryKey());
+        pending = null;
+        form.elements.reason.disabled = false;
+      } else if (pending) {
+        $(".form-error", form).textContent += "。结果待核实，请重试原请求。";
+        button.textContent = "核实原请求";
+      }
+    } finally { button.disabled = false; }
+  };
+}
+
 function bindSimpleForm(selector, path) {
   $(selector).onsubmit = async (e) => {
     e.preventDefault();

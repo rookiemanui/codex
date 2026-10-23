@@ -51,7 +51,7 @@ class HTTPCase(unittest.TestCase):
             self.call('/api/transactions')
         self.assertEqual(raised.exception.code, 401)
         with self.call('/') as response:
-            self.assertIn('本地账本', response.read().decode())
+            self.assertIn('档口账本', response.read().decode())
 
     def test_mutations_require_csrf_and_matching_origin(self):
         self.login()

@@ -13,6 +13,7 @@ from localledger.server import Application, make_server
 from localledger.access import set_password
 from localledger.browser import find_chrome, open_chrome
 from localledger.store import Problem
+from localledger.desktop import DataDirectoryLock
 
 
 def main():
@@ -35,7 +36,8 @@ def main():
         if first != getpass.getpass('再次输入密码：'):
             parser.error('两次密码不一致')
         try:
-            set_password(args.data_dir, first)
+            with DataDirectoryLock(args.data_dir):
+                set_password(args.data_dir, first)
         except Problem as exc:
             parser.error(str(exc))
         print('密码已保存。重新启动服务后生效，旧会话会失效。')
@@ -46,14 +48,23 @@ def main():
         if not chrome:
             parser.error('未找到Chrome，请先安装，或用 --chrome-path 指定chrome.exe位置')
     args.host = args.host or ('127.0.0.1' if args.public_url else '0.0.0.0')
+    directory_lock = DataDirectoryLock(args.data_dir)
     try:
+        directory_lock.acquire()
         app = Application(args.data_dir, public_url=args.public_url, test_mode=args.test_mode)
     except (Problem, ValueError) as exc:
+        directory_lock.release()
         parser.error(str(exc))
+    except BaseException:
+        directory_lock.release()
+        raise
     try:
         server = make_server(app, args.host, args.port)
     except (OSError, Problem) as exc:
-        app.close()
+        try:
+            app.close()
+        finally:
+            directory_lock.release()
         print(f'启动失败：{exc}。可使用 --port 8766 更换端口。', file=sys.stderr)
         return 1
     port = server.server_address[1]
@@ -99,8 +110,11 @@ def main():
     except KeyboardInterrupt:
         print('\n正在保存并退出……', flush=True)
     finally:
-        server.server_close()
-        app.close()
+        try:
+            server.server_close()
+            app.close()
+        finally:
+            directory_lock.release()
     return 0
 
 

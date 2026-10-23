@@ -1,4 +1,5 @@
 import base64
+from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import sqlite3
@@ -51,7 +52,7 @@ class LedgerCase(unittest.TestCase):
 
     def test_old_database_upgrade_preserves_amount_and_unknown_precision(self):
         self.entry()
-        with sqlite3.connect(self.store.db_path) as db:
+        with closing(sqlite3.connect(self.store.db_path)) as db, db:
             db.execute('ALTER TABLE transactions DROP COLUMN source_note')
             db.execute('ALTER TABLE transactions DROP COLUMN time_precision')
         upgraded = Store(self.root)
@@ -245,10 +246,10 @@ class LedgerCase(unittest.TestCase):
     def test_corrupted_record_backup_is_repaired_from_event_outbox(self):
         self.entry()
         event = next((self.root/'backups/records').glob('*.json'))
-        expected = event.read_text()
-        event.write_text('{broken')
+        expected = event.read_text(encoding='utf-8')
+        event.write_text('{broken', encoding='utf-8')
         self.store.recover_backups()
-        self.assertEqual(event.read_text(), expected)
+        self.assertEqual(event.read_text(encoding='utf-8'), expected)
 
     def test_concurrent_phone_and_computer_writes_all_have_backups(self):
         with ThreadPoolExecutor(max_workers=4) as workers:

@@ -100,6 +100,7 @@ class RestaurantCase(unittest.TestCase):
 
     def test_competing_orders_cannot_oversell_shared_ingredient(self):
         self.store.add_movement({'product_id': self.raw, 'kind': 'adjust', 'quantity': '1',
+            'expected_stock_version': self.store.products()[0]['stock_version'],
             'occurred_at': '2026-10-19 11:00', 'idempotency_key': uuid4().hex})
         def attempt(_):
             try:

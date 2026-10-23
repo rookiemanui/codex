@@ -1343,6 +1343,25 @@ textarea {
   .mobile-hide {
     display: none;
   }
+  .transaction-table {
+    table-layout: fixed;
+  }
+  .transaction-table th:nth-child(2),
+  .transaction-table td:nth-child(2) {
+    display: none;
+  }
+  .transaction-table .amount {
+    width: 36%;
+    padding-left: 4px;
+  }
+  .transaction-table .tx-main,
+  .transaction-table .tx-main > div {
+    min-width: 0;
+  }
+  .transaction-table .tx-main strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .tx-main {
     gap: 8px;
   }

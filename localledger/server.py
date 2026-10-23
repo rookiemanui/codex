@@ -24,6 +24,17 @@ from .trial import is_trial, prepare_trial
 STATIC = Path(__file__).resolve().parent / 'web'
 
 
+class LedgerHTTPServer(ThreadingHTTPServer):
+    # server_close must wait for active writes and their backups before the
+    # controller releases the data-directory lock or exits the process.
+    daemon_threads = False
+
+    def get_request(self):
+        client, address = super().get_request()
+        client.settimeout(15)
+        return client, address
+
+
 class Application:
     def __init__(self, directory, code=None, public_url=None, test_mode=False):
         self.test_mode = test_mode or is_trial(directory)
@@ -299,6 +310,12 @@ def make_server(application, host='127.0.0.1', port=8765):
                     self.send(store.add_product(value))
                 elif path == '/api/movements':
                     self.send(store.add_movement(value))
+                elif path.startswith('/api/movements/') and path.endswith('/reverse'):
+                    parts = path.strip('/').split('/')
+                    if len(parts) != 4:
+                        self.send({'error': '接口不存在'}, 404)
+                    else:
+                        self.send(store.reverse_movement(parts[2], value))
                 elif path.startswith('/api/rules/'):
                     self.send(store.delete_rule(path.rsplit('/', 1)[1]))
                 elif path == '/api/backup':
@@ -316,4 +333,4 @@ def make_server(application, host='127.0.0.1', port=8765):
                 traceback.print_exc()
                 self.send({'error': '本地操作失败，请查看电脑启动窗口；重复提交不会重复记账'}, 500)
 
-    return ThreadingHTTPServer((host, port), Handler)
+    return LedgerHTTPServer((host, port), Handler)

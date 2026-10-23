@@ -1,2 +1,2 @@
 """Local shop ledger. No cloud service is required."""
-__version__ = '0.3.3'
+__version__ = '0.4.0'
