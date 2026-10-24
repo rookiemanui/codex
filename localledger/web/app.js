@@ -157,7 +157,7 @@ function loginScreen() {
   clearInterval(state.poll);
   closeModal();
   $("#app").innerHTML =
-    `<div class="login-wrap"><form class="login-card" id="login-form"><div class="login-brand"><img src="/icon.svg" alt=""><strong>档口账本</strong></div><div class="eyebrow">YOUR SHOP, YOUR DATA</div><h1>连接店铺账本</h1><p>输入你在电脑上设置的访问密码。</p><label class="form-field"><span>访问密码</span><input class="code-input" id="access-code" name="code" type="password" autocomplete="current-password" maxlength="256" aria-label="访问密码" required placeholder="······"></label><button class="primary full" type="submit">进入账本 ${icon("arrow")}</button><div class="form-error" id="login-error" role="alert"></div><small>${icon("shield")} 数据保存在电脑，无需云端账号</small></form></div>`;
+    `<div class="login-wrap"><form class="login-card" id="login-form"><div class="login-brand"><img src="/icon.svg" alt=""><strong>小锅账本</strong></div><div class="eyebrow">YOUR SHOP, YOUR DATA</div><h1>连接店铺账本</h1><p>输入你在电脑上设置的访问密码。</p><label class="form-field"><span>访问密码</span><input class="code-input" id="access-code" name="code" type="password" autocomplete="current-password" maxlength="256" aria-label="访问密码" required placeholder="······"></label><button class="primary full" type="submit">进入账本 ${icon("arrow")}</button><div class="form-error" id="login-error" role="alert"></div><small>${icon("shield")} 数据保存在电脑，无需云端账号</small></form></div>`;
   $("#login-form").onsubmit = async (e) => {
     e.preventDefault();
     const button = $("button[type=submit]", e.target);
@@ -176,7 +176,7 @@ function loginScreen() {
 async function shell() {
   state.options = await api("/api/options");
   $("#app").innerHTML =
-    `<div class="shell"><aside class="sidebar"><div class="brand"><img src="/icon.svg" alt=""><div><strong>档口账本</strong><small>LOCAL LEDGER</small></div></div><nav class="nav" aria-label="主导航">${[
+    `<div class="shell"><aside class="sidebar"><div class="brand"><img src="/icon.svg" alt=""><div><strong>小锅账本</strong><small>LOCAL LEDGER</small></div></div><nav class="nav" aria-label="主导航">${[
       ["overview", "grid", "总览"],
       ["pos", "wallet", "餐饮收银"],
       ["orders", "book", "销售小票"],
@@ -192,7 +192,7 @@ async function shell() {
       )
       .join(
         "",
-      )}</nav><div class="sidebar-foot"><span class="local-dot"></span><span style="font-size:12px">数据留在本机</span><p>一笔一备份，经营更安心。</p></div></aside><main class="main"><div class="mobile-brand"><img src="/icon.svg" alt="">档口账本</div><div id="content"></div></main></div>`;
+      )}</nav><div class="sidebar-foot"><span class="local-dot"></span><span style="font-size:12px">数据留在本机</span><p>一笔一备份，经营更安心。</p></div></aside><main class="main"><div class="mobile-brand"><img src="/icon.svg" alt="">小锅账本</div><div id="content"></div></main></div>`;
   $$("[data-page]").forEach(
     (el) => (el.onclick = () => navigate(el.dataset.page)),
   );
@@ -249,7 +249,7 @@ async function render() {
   const el = $("#content");
   if (!el) return;
   el.innerHTML =
-    '<div class="loading"><span class="spinner"></span>正在读取档口账本…</div>';
+    '<div class="loading"><span class="spinner"></span>正在读取小锅账本…</div>';
   try {
     if (state.page === "overview") await overview();
     else if (state.page === "transactions") await transactionsPage();

@@ -35,12 +35,13 @@ def main():
     build = Path(args.build_dir).resolve()
     output.mkdir(parents=True, exist_ok=True)
     build.mkdir(parents=True, exist_ok=True)
-    name = 'DangkouLedger'
+    name = 'XiaoGuoLedger'
     bundle = output / name
     if bundle.exists():
         parser.error(f'输出目录已存在：{bundle}。请换一个 --output，避免覆盖既有账本。')
     subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--onedir', '--windowed',
-                    '--name', name, '--distpath', str(output), '--workpath', str(build / 'work'),
+                    '--name', name, '--icon', str(ROOT / 'assets/xiaoguo.ico'),
+                    '--distpath', str(output), '--workpath', str(build / 'work'),
                     '--specpath', str(build), '--paths', str(ROOT),
                     '--add-data', str(ROOT / 'localledger/web') + ';localledger/web',
                     '--exclude-module', 'paddleocr', '--exclude-module', 'paddle',
@@ -49,11 +50,11 @@ def main():
     shutil.copy2(ROOT / 'docs/Windows便携版.md', bundle / '使用说明.md')
     shutil.copy2(ROOT / 'docs/小锅菜档口上手指南.md', bundle / '小锅菜档口上手指南.md')
     (bundle / '练习账本.bat').write_text('@echo off\r\nchcp 65001 >nul\r\n'
-                                        'cd /d "%~dp0"\r\nstart "" "DangkouLedger.exe" --test-mode\r\n', encoding='utf-8')
+                                        f'cd /d "%~dp0"\r\nstart "" "{name}.exe" --test-mode\r\n', encoding='utf-8')
     manifest = {str(file.relative_to(bundle)).replace('\\', '/'): hashlib.sha256(file.read_bytes()).hexdigest()
                 for file in sorted(bundle.rglob('*')) if file.is_file()}
     (bundle / 'MANIFEST.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
-    archive = output / f'dangkou-ledger-{__version__}-windows-x64.zip'
+    archive = output / f'xiaoguo-ledger-{__version__}-windows-x64.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as zipped:
         for file in sorted(bundle.rglob('*')):
             if file.is_file():
