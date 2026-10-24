@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import csv
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import hashlib
@@ -209,7 +209,7 @@ class Store(Restaurant):
         day = datetime.now().strftime('%Y-%m-%d')
         path = self.root / 'backups/database' / (day + '.sqlite3')
         temporary = path.with_suffix('.tmp')
-        with self.connect() as source, sqlite3.connect(temporary) as target:
+        with self.connect() as source, closing(sqlite3.connect(temporary)) as target:
             source.backup(target)
         temporary.replace(path)
 
@@ -323,12 +323,13 @@ class Store(Restaurant):
         return {'id': key, 'already_saved': False}
 
     def add_transaction(self, value):
-        if value.get('kind') == 'sale_refund':
-            raise Problem('销售退款请在销售订单中办理退单')
         with self.lock:
             with self.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
-                result = self._add_transaction(db, value)
+                sales_refund = value.get('kind') == 'sale_refund'
+                if sales_refund and db.execute('SELECT 1 FROM orders WHERE transaction_id=?', (value.get('refund_of'),)).fetchone():
+                    raise Problem('收银订单的销售退款请在销售订单中办理退单')
+                result = self._add_transaction(db, value, sales_refund=sales_refund)
             return self._finish(result)
 
     def annotate_source(self, key, source_note, precision):
@@ -391,7 +392,7 @@ class Store(Restaurant):
             if db.execute('SELECT 1 FROM transactions WHERE refund_of=? AND voided_at IS NULL', (key,)).fetchone():
                 raise Problem('这笔支出存在退款，须先作废关联退款')
             if db.execute('SELECT 1 FROM movements WHERE transaction_id=?', (key,)).fetchone():
-                raise Problem('该账目关联库存流水，不能单独作废；请先通过反向库存动作处理')
+                raise Problem('该账目关联库存流水，请到库存管理撤销原流水；库存与关联收支将同时撤销')
             db.execute('UPDATE transactions SET voided_at=? WHERE id=?', (now(), key))
             self._event(db, 'transaction', key, 'voided', {'before': row, 'after': dict(self._row(db, 'transactions', key))})
         return self._finish({'ok': True})
@@ -579,7 +580,8 @@ class Store(Restaurant):
         with self.connect() as db:
             return [{**dict(row), 'stock': quantity(row['stock_milli']), 'minimum': quantity(row['minimum_milli']),
                      'low': row['stock_milli'] <= row['minimum_milli']}
-                    for row in db.execute('SELECT * FROM products ORDER BY name')]
+                    for row in db.execute('''SELECT p.*,(SELECT COUNT(*) FROM movements m
+                        WHERE m.product_id=p.id) AS stock_version FROM products p ORDER BY name''')]
 
     def add_product(self, value):
         name, unit = text(value.get('name'), 100), text(value.get('unit') or '件', 20)
@@ -603,16 +605,27 @@ class Store(Restaurant):
         if kind not in ['in', 'out', 'adjust', 'loss', 'customer_return', 'supplier_return']:
             raise Problem('库存动作无效')
         date = when(value.get('occurred_at'))
+        qty = scaled(value.get('quantity'), 1000, allow_zero=kind == 'adjust')
+        request = {'product_id': value.get('product_id'), 'kind': kind, 'quantity_milli': qty,
+                   'occurred_at': date, 'note': text(value.get('note')),
+                   'transaction': value.get('transaction') or None}
+        if kind == 'adjust':
+            version = value.get('expected_stock_version')
+            if type(version) is not int or version < 0:
+                raise Problem('缺少盘点库存版本，请刷新库存后重新盘点')
+            request['expected_stock_version'] = version
         with self.lock:
             with self.connect() as db:
                 db.execute('BEGIN IMMEDIATE')
-                existing = db.execute('SELECT id,transaction_id FROM movements WHERE idempotency_key=?', (idem,)).fetchone()
-                if existing:
+                retry = self._movement_retry(db, idem, request)
+                if retry:
                     db.rollback()
-                    return self._finish(dict(existing) | {'already_saved': True})
+                    return self._finish(retry)
                 product = self._row(db, 'products', value.get('product_id'))
-                qty = scaled(value.get('quantity'), 1000, allow_zero=kind == 'adjust')
                 if kind == 'adjust':
+                    current_version = db.execute('SELECT COUNT(*) FROM movements WHERE product_id=?', (product['id'],)).fetchone()[0]
+                    if version != current_version:
+                        raise Problem('另一台设备或其他操作已变更库存，请刷新后重新盘点')
                     delta = qty - product['stock_milli']
                 else:
                     delta = qty * (-1 if kind in ['out', 'loss', 'supplier_return'] else 1)
@@ -622,6 +635,15 @@ class Store(Restaurant):
                     raise Problem('库存不足，请先核对入库或进行盘点')
                 tx = None
                 if value.get('transaction'):
+                    transaction = value['transaction']
+                    if not isinstance(transaction, dict) or transaction.get('kind') != {
+                            'in': 'expense', 'out': 'income', 'supplier_return': 'refund'}.get(kind):
+                        raise Problem('库存动作与关联收支方向不一致；领用损耗和盘点不新增收入，供应商退款须关联原采购')
+                    if kind == 'supplier_return':
+                        original = db.execute('''SELECT 1 FROM movements WHERE product_id=?
+                            AND kind='in' AND transaction_id=?''', (product['id'], transaction.get('refund_of'))).fetchone()
+                        if not original:
+                            raise Problem('退供应商的退款必须关联此原料的原采购支出')
                     tx = self._add_transaction(db, value['transaction'])
                     if tx.get('already_saved'):
                         raise Problem('关联账目已存在，不能重复登记库存')
@@ -631,12 +653,84 @@ class Store(Restaurant):
                         'transaction_id': tx['id'] if tx else None, 'created_at': now(), 'idempotency_key': idem}
                 db.execute('INSERT INTO movements VALUES(' + ','.join('?' for _ in data) + ')', tuple(data.values()))
                 db.execute('UPDATE products SET stock_milli=stock_milli+? WHERE id=?', (delta, product['id']))
-                self._event(db, 'movement', key, 'created', data)
+                self._event(db, 'movement', key, 'created', {**data, 'request': request})
             return self._finish({'id': key, 'transaction_id': tx['id'] if tx else None})
+
+    def _movement_retry(self, db, idem, request):
+        existing = db.execute('SELECT id,transaction_id FROM movements WHERE idempotency_key=?', (idem,)).fetchone()
+        if not existing:
+            return None
+        event = db.execute("SELECT payload FROM events WHERE entity='movement' AND entity_id=? AND action='created'", (existing['id'],)).fetchone()
+        previous = json.loads(event['payload']).get('request') if event else None
+        if previous != request:
+            raise Problem('此请求编号已保存其他内容，请先核对原库存流水；不能用同一编号修改已保存的记录')
+        result = dict(existing) | {'already_saved': True}
+        if request.get('action') == 'reverse':
+            result['reversed_movement_id'] = request['movement_id']
+            result['transaction_id'] = request.get('transaction_id')
+        return result
+
+    def reverse_movement(self, key, value):
+        idem = text(value.get('idempotency_key'), 100)
+        reason = text(value.get('reason'))
+        if not idem or not reason:
+            raise Problem('请填写撤销原因，并保留原撤销请求编号')
+        with self.lock:
+            with self.connect() as db:
+                db.execute('BEGIN IMMEDIATE')
+                original = db.execute('SELECT * FROM movements WHERE id=?', (key,)).fetchone()
+                if not original:
+                    raise Problem('库存流水不存在，请刷新页面')
+                request = {'action': 'reverse', 'movement_id': key, 'reason': reason,
+                           'transaction_id': original['transaction_id']}
+                retry = self._movement_retry(db, idem, request)
+                if retry:
+                    db.rollback()
+                    return self._finish(retry)
+                if original['kind'] == 'reversal':
+                    raise Problem('撤销记录不能再次撤销，请按实际情况新登记库存')
+                if db.execute("SELECT 1 FROM events WHERE entity='movement' AND entity_id=? AND action='reversed'", (key,)).fetchone():
+                    raise Problem('这条库存流水已经撤销，请刷新页面')
+                if db.execute('''SELECT 1 FROM movements WHERE product_id=? AND kind='adjust'
+                        AND rowid>(SELECT rowid FROM movements WHERE id=?)
+                        AND id NOT IN (SELECT entity_id FROM events WHERE entity='movement' AND action='reversed')''',
+                        (original['product_id'], key)).fetchone():
+                    raise Problem('此流水之后已有盘点，请先核对后续盘点记录，不能直接反向更改盘点后的库存')
+                product = self._row(db, 'products', original['product_id'])
+                delta = -original['delta_milli']
+                if product['stock_milli'] + delta < 0:
+                    raise Problem('原入库已被领用，撤销会造成负库存；请先核对后续库存流水')
+                tx_id = original['transaction_id']
+                if tx_id:
+                    transaction = dict(self._row(db, 'transactions', tx_id))
+                    if transaction['voided_at']:
+                        raise Problem('关联账目已作废，请先核对历史记录')
+                    if db.execute('SELECT 1 FROM orders WHERE transaction_id=? UNION ALL SELECT 1 FROM order_refunds WHERE transaction_id=?', (tx_id, tx_id)).fetchone():
+                        raise Problem('收银账目不能通过库存单独撤销，请在销售订单中处理')
+                    if db.execute('SELECT 1 FROM transactions WHERE refund_of=? AND voided_at IS NULL', (tx_id,)).fetchone():
+                        raise Problem('原采购存在退款，请先处理关联退款记录')
+                    db.execute('UPDATE transactions SET voided_at=? WHERE id=?', (now(), tx_id))
+                    self._event(db, 'transaction', tx_id, 'voided', {'before': transaction,
+                        'after': dict(self._row(db, 'transactions', tx_id)), 'reason': reason,
+                        'reversed_movement_id': key})
+                reversal_id = identifier()
+                data = {'id': reversal_id, 'product_id': product['id'], 'kind': 'reversal',
+                        'delta_milli': delta, 'occurred_at': when(now()), 'note': reason,
+                        'transaction_id': None, 'created_at': now(), 'idempotency_key': idem}
+                db.execute('INSERT INTO movements VALUES(' + ','.join('?' for _ in data) + ')', tuple(data.values()))
+                db.execute('UPDATE products SET stock_milli=stock_milli+? WHERE id=?', (delta, product['id']))
+                self._event(db, 'movement', reversal_id, 'created', {**data, 'request': request, 'reversal_of': key})
+                self._event(db, 'movement', key, 'reversed', {'reversal_id': reversal_id,
+                    'reason': reason, 'transaction_id': tx_id})
+            return self._finish({'id': reversal_id, 'transaction_id': tx_id, 'reversed_movement_id': key})
 
     def movements(self):
         with self.connect() as db:
-            return [dict(row) for row in db.execute('SELECT m.*,p.name,p.unit FROM movements m JOIN products p ON p.id=m.product_id ORDER BY occurred_at DESC,created_at DESC LIMIT 1000')]
+            reversed_by = {row['entity_id']: json.loads(row['payload'])['reversal_id'] for row in
+                           db.execute("SELECT entity_id,payload FROM events WHERE entity='movement' AND action='reversed'")}
+            reversal_of = {value: key for key, value in reversed_by.items()}
+            return [{**dict(row), 'reversed_by': reversed_by.get(row['id']), 'reversal_of': reversal_of.get(row['id'])}
+                    for row in db.execute('SELECT m.*,p.name,p.unit FROM movements m JOIN products p ON p.id=m.product_id ORDER BY occurred_at DESC,created_at DESC LIMIT 1000')]
 
     def export_csv(self):
         out = io.StringIO(newline='')
@@ -658,7 +752,7 @@ class Store(Restaurant):
             out = self.root / 'backups' / ('export-' + identifier() + '.zip')
             with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as archive:
                 temporary = self.root / 'backups/database/export.sqlite3'
-                with self.connect() as src, sqlite3.connect(temporary) as dst:
+                with self.connect() as src, closing(sqlite3.connect(temporary)) as dst:
                     src.backup(dst)
                 archive.write(temporary, 'ledger.sqlite3')
                 for folder in ['receipts', 'backups/records']:

@@ -17,7 +17,7 @@ def main():
     args = parser.parse_args()
     destination = Path(args.output).resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    files = [ROOT / name for name in ['README.md', '.gitignore', 'run.py', 'start.sh', '启动账本.bat',
+    files = [ROOT / name for name in ['README.md', '.gitignore', 'run.py', 'desktop.py', 'requirements-packaging-windows.in', 'start.sh', '启动账本.bat',
         '启动外网试用.bat', '启动测试版.bat', '用Chrome打开账本.bat', '安装截图识别.bat', 'requirements-ocr.in', 'requirements-ocr.lock',
         'requirements-dev.in', 'requirements-dev.lock', 'ruff.toml',
         'requirements-packaging.in', 'requirements-packaging-linux.lock']]

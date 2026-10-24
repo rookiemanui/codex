@@ -8,6 +8,7 @@ from uuid import uuid4
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from localledger.server import Application, make_server
 from playwright.sync_api import sync_playwright, expect
+from scripts.browser_test_support import launch_browser
 
 
 def main():
@@ -23,7 +24,7 @@ def main():
         errors = []
         try:
             with sync_playwright() as p:
-                browser = p.chromium.launch(executable_path='/usr/bin/chromium', headless=True, args=['--no-sandbox'])
+                browser = launch_browser(p)
                 context = browser.new_context(viewport={'width': 1440, 'height': 1000})
                 page = context.new_page()
                 page.on('pageerror', lambda error: errors.append(str(error)))

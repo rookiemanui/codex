@@ -1,0 +1,3 @@
+# Build on Windows with a full CPython 3.12 distribution, including tkinter.
+# The produced onedir package includes Python; users need no Python installation.
+pyinstaller==6.22.3
