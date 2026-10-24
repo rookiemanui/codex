@@ -37,13 +37,10 @@ class DesktopLifecycleCase(unittest.TestCase):
     def client(service):
         client = urllib.request.build_opener(urllib.request.ProxyHandler({}),
                                             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-        request = urllib.request.Request(service.url + '/api/login',
-                                         data=json.dumps({'code': service.application.code}).encode(),
-                                         headers={'Content-Type': 'application/json'})
-        with client.open(request, timeout=5):
-            pass
         with client.open(service.url + '/api/status', timeout=5) as response:
-            csrf = json.load(response)['csrf']
+            status = json.load(response)
+            assert status['authenticated'] and status['auth_mode'] == 'direct'
+            csrf = status['csrf']
         return client, csrf
 
     def test_two_clients_share_data_and_restart_preserves_it(self):

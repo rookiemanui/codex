@@ -25,8 +25,6 @@ def main():
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.goto(f'http://127.0.0.1:{server.server_address[1]}')
-                page.get_by_label('六位连接码').fill('123456')
-                page.get_by_role('button', name='进入账本').click()
                 expect(page.get_by_text('本地测试版 · 模拟账本', exact=True)).to_be_visible()
                 page.locator('[data-page=transactions]').click()
                 page.get_by_role('button', name='记一笔', exact=True).click()

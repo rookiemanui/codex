@@ -30,8 +30,6 @@ def main():
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 url = f'http://127.0.0.1:{server.server_address[1]}'
                 page.goto(url)
-                page.get_by_label('六位连接码').fill('123456')
-                page.get_by_role('button', name='进入账本').click()
                 page.locator('[data-page=pos]').click()
                 page.get_by_role('button', name='菜品与配方', exact=True).click()
                 page.get_by_role('button', name='新增菜品', exact=True).click()
@@ -85,8 +83,6 @@ def main():
                 phone = mobile.new_page()
                 phone.on('pageerror', lambda error: errors.append(str(error)))
                 phone.goto(url)
-                phone.get_by_label('六位连接码').fill('123456')
-                phone.get_by_role('button', name='进入账本').click()
                 phone.locator('[data-page=pos]').click()
                 expect(phone.get_by_role('button', name='猪肚鸡（模拟）', exact=False).first).to_be_visible()
                 assert phone.evaluate('document.documentElement.scrollWidth <= innerWidth')

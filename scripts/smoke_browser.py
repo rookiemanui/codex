@@ -34,8 +34,6 @@ def main():
                 page = context.new_page()
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.goto(url)
-                page.get_by_label('六位连接码').fill('123456')
-                page.get_by_role('button', name='进入账本').click()
                 expect(page.get_by_role('heading', name='店铺总览', exact=True)).to_be_visible()
 
                 def add(amount, category, purpose, kind='expense'):
@@ -127,8 +125,6 @@ def main():
                 phone = mobile.new_page()
                 phone.on('pageerror', lambda error: errors.append(str(error)))
                 phone.goto(url)
-                phone.get_by_label('六位连接码').fill('123456')
-                phone.get_by_role('button', name='进入账本').click()
                 expect(phone.locator('.stat.featured .stat-value')).to_contain_text('67.26')
                 assert phone.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Mobile page overflows'
                 phone.screenshot(path=str(output/'mobile.png'), full_page=True)

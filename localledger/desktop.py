@@ -294,7 +294,7 @@ def main(argv=None):
     if args.test_mode:
         ttk.Label(content, text='练习账本：模拟数据保存在独立目录，请勿录入正式账目。').grid(sticky='w', pady=(0, 12))
     fields = {}
-    for label in ['数据保存位置', '本次连接码', '电脑网页地址']:
+    for label in ['数据保存位置', '访问方式', '电脑网页地址']:
         ttk.Label(content, text=label).grid(sticky='w', pady=(7, 3))
         variable = tk.StringVar(value=str(service.directory) if label == '数据保存位置' else '正在准备')
         ttk.Entry(content, textvariable=variable, state='readonly').grid(sticky='ew')
@@ -304,7 +304,7 @@ def main(argv=None):
                     font=('Microsoft YaHei UI', 10))
     phone.grid(sticky='ew')
     phone.configure(state='disabled')
-    ttk.Label(content, text='手机输入上面的地址和连接码。多个地址可逐个尝试；连接失败请检查专用网络防火墙。',
+    ttk.Label(content, text='手机输入上面的地址即可打开账本；若设置了独立密码，仍需输入密码。多个地址可逐个尝试。',
               wraplength=620).grid(sticky='w', pady=(6, 12))
     actions = ttk.Frame(content)
     actions.grid(sticky='ew', pady=6)
@@ -442,7 +442,7 @@ def main(argv=None):
             stop_service()
         else:
             status.set('正在运行 · 电脑与手机共用这份账本')
-            fields['本次连接码'].set('已设置访问密码，请使用原密码' if service.application.password else service.application.code)
+            fields['访问方式'].set('需输入已设置的独立密码' if service.application.password else '打开地址直接进入，无需连接码')
             fields['电脑网页地址'].set(service.url)
             show_phone_addresses()
             for button in buttons + [restore_button]:

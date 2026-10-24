@@ -40,18 +40,23 @@ class HTTPCase(unittest.TestCase):
         return self.client.open(request, timeout=10)
 
     def login(self):
-        with self.call('/api/login', {'code': '123456'}) as response:
+        with self.call('/api/status') as response:
             self.assertIn('HttpOnly', response.headers['Set-Cookie'])
             self.assertIn('SameSite=Strict', response.headers['Set-Cookie'])
-        with self.call('/api/status') as response:
-            self.csrf = json.load(response)['csrf']
+            status = json.load(response)
+            self.assertTrue(status['authenticated'])
+            self.assertEqual(status['auth_mode'], 'direct')
+            self.csrf = status['csrf']
 
-    def test_private_data_requires_connection_code(self):
+    def test_opening_status_enters_local_ledger_directly(self):
         with self.assertRaises(urllib.error.HTTPError) as raised:
             self.call('/api/transactions')
         self.assertEqual(raised.exception.code, 401)
         with self.call('/') as response:
             self.assertIn('档口账本', response.read().decode())
+        self.login()
+        with self.call('/api/transactions') as response:
+            self.assertEqual(json.load(response), [])
 
     def test_mutations_require_csrf_and_matching_origin(self):
         self.login()
@@ -93,14 +98,6 @@ class HTTPCase(unittest.TestCase):
             time.sleep(0.05)
         self.assertTrue(result['drafts'])
         self.assertEqual(self.app.store.transactions(), [])
-
-    def test_failed_login_is_rate_limited(self):
-        for _ in range(5):
-            with self.assertRaises(urllib.error.HTTPError):
-                self.call('/api/login', {'code': '000000'})
-        with self.assertRaises(urllib.error.HTTPError) as raised:
-            self.call('/api/login', {'code': '123456'})
-        self.assertIn('一分钟', raised.exception.read().decode())
 
     def test_receipt_queue_resumes_after_restart(self):
         key = self.app.store.save_receipt('中断前上传.png', PNG)['id']
@@ -161,6 +158,14 @@ class RemoteHTTPCase(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as raised:
             self.request('/api/shop', extra={'Cookie': cookie})
         self.assertEqual(raised.exception.code, 401)
+
+    def test_password_login_is_rate_limited(self):
+        for _ in range(5):
+            with self.assertRaises(urllib.error.HTTPError):
+                self.request('/api/login', {'code': 'wrong-password'})
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.request('/api/login', {'code': 'owner-password-123456'})
+        self.assertIn('一分钟', raised.exception.read().decode())
 
 
 if __name__ == '__main__':

@@ -214,8 +214,6 @@ class InventorySafetyCase(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 call(path, request)
             self.assertEqual(error.exception.code, 401)
-            with call('/api/login', {'code': '123456'}):
-                pass
             with call('/api/status') as response:
                 csrf = json.load(response)['csrf']
             with self.assertRaises(urllib.error.HTTPError) as error:
