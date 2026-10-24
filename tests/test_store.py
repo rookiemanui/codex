@@ -1,4 +1,5 @@
 import base64
+import csv
 from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -9,7 +10,7 @@ from uuid import uuid4
 import zipfile
 import io
 
-from localledger.store import Store, Problem, scaled, quantity
+from localledger.store import Store, Problem, csv_cell, scaled, quantity
 from localledger.recognition import parse_payment
 
 
@@ -37,6 +38,16 @@ class LedgerCase(unittest.TestCase):
 
     def test_inventory_display_preserves_integer_trailing_zeros(self):
         self.assertEqual([quantity(x) for x in [0, 10000, 100000, 1500, 10]], ['0', '10', '100', '1.5', '0.01'])
+
+    def test_inventory_sheet_has_exact_quantities_and_safe_text(self):
+        key = self.store.add_product({'name': '=HYPERLINK("unsafe")', 'sku': '@SUM(1,1)',
+                                      'unit': '千克', 'minimum': '1.5'})['id']
+        self.movement(key, 'in', '1.25')
+        rows = list(csv.reader(io.StringIO(self.store.export_inventory_csv().decode('utf-8-sig'))))
+        self.assertEqual(rows[0][-2:], ['实盘数量（手填）', '备注（手填）'])
+        self.assertEqual(rows[1], ["'@SUM(1,1)", "'=HYPERLINK(\"unsafe\")", '千克',
+                                   '1.25', '1.5', '待补货', '', ''])
+        self.assertEqual(csv_cell(' \t=HYPERLINK("unsafe")'), "' \t=HYPERLINK(\"unsafe\")")
 
     def test_money_rejects_rounding_and_non_finite_values(self):
         for value in ['1.005', 'NaN', 'Infinity', '-1', '0', '', 'abc']:

@@ -847,7 +847,7 @@ async function inventoryPage() {
     header(
       "库存管理",
       "商品与原料都能按自己的单位管理，数量支持三位小数。",
-      `<button class="primary" id="new-product">${icon("plus")} 新建商品 / 原料</button>`,
+      `<a class="button-link" href="/api/inventory.csv"><button type="button">${icon("down")} 导出盘点表</button></a><button class="primary" id="new-product">${icon("plus")} 新建商品 / 原料</button>`,
     ) +
     `${
       low.length

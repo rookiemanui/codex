@@ -1,5 +1,7 @@
 import base64
+import csv
 import http.cookiejar
+import io
 import json
 import tempfile
 import threading
@@ -80,6 +82,20 @@ class HTTPCase(unittest.TestCase):
             self.assertEqual((result['expense_cents'], result['transaction_count']), (1680, 1))
         with self.call('/api/export.csv') as response:
             self.assertIn('猪肚鸡调料', response.read().decode('utf-8-sig'))
+
+    def test_inventory_sheet_requires_session_and_does_not_change_stock(self):
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.call('/api/inventory.csv')
+        self.assertEqual(raised.exception.code, 401)
+        self.login()
+        key = self.app.store.add_product({'name': '鸡肉', 'unit': '千克', 'minimum': '2'})['id']
+        before = self.app.store.products()
+        with self.call('/api/inventory.csv') as response:
+            self.assertIn('attachment;', response.headers['Content-Disposition'])
+            rows = list(csv.reader(io.StringIO(response.read().decode('utf-8-sig'))))
+        self.assertEqual(rows[1][1:6], ['鸡肉', '千克', '0', '2', '待补货'])
+        self.assertEqual(self.app.store.products(), before)
+        self.assertEqual(before[0]['id'], key)
 
     def test_upload_preserves_real_image_bytes_and_creates_review(self):
         self.login()
