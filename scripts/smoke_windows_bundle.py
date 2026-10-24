@@ -48,7 +48,7 @@ def main():
                     try:
                         with client.open(url + '/api/status', timeout=1) as response:
                             status = json.load(response)
-                        assert status['version'] == '0.4.1' and status['test_mode']
+                        assert status['version'] == '0.4.2' and status['test_mode']
                         break
                     except OSError:
                         if process.poll() is not None or time.monotonic() > deadline:

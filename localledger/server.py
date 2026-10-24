@@ -223,6 +223,10 @@ def make_server(application, host='127.0.0.1', port=8765):
                                'version': __version__, 'access_mode': ('HTTPS 外网入口：' + application.public_url if application.public_url else ('本机或局域网，使用独立密码' if application.password else '本机或同一局域网，打开地址直接进入'))})
                 elif path == '/api/export.csv':
                     self.send(store.export_csv(), mime='text/csv; charset=utf-8', headers={'Content-Disposition': 'attachment; filename="ledger.csv"'})
+                elif path == '/api/inventory.csv':
+                    name = 'inventory-' + time.strftime('%Y%m%d-%H%M') + '.csv'
+                    self.send(store.export_inventory_csv(), mime='text/csv; charset=utf-8',
+                              headers={'Content-Disposition': f'attachment; filename="{name}"'})
                 elif path == '/api/backup.zip':
                     archive = store.backup_file()
                     try:

@@ -76,6 +76,12 @@ def text(value, maximum=500):
     return value
 
 
+def csv_cell(value):
+    """Keep user-controlled text from becoming a spreadsheet formula."""
+    value = str(value if value is not None else '')
+    return "'" + value if value.lstrip(' \t\r\n\ufeff').startswith(('=', '+', '-', '@')) else value
+
+
 DEFAULT_CATEGORIES = [
     ('sales', '销售收款', 'income'), ('other_income', '其他收入', 'income'),
     ('purchase', '进货采购', 'expense'), ('ingredients', '餐饮食材', 'expense'),
@@ -741,7 +747,18 @@ class Store(Restaurant):
             # Prevent spreadsheet software from interpreting user text as formulas.
             values = [row['id'], displayed_time, row['kind'], row['purpose'], row['category_name'] or '', row['amount'],
                       row['account_name'], row['merchant'], row['reference'], row['receipt_id'] or '', '是' if row['voided_at'] else '否']
-            writer.writerow(["'" + str(v) if str(v).startswith(('=', '+', '-', '@')) else v for v in values])
+            writer.writerow([csv_cell(v) for v in values])
+        return ('\ufeff' + out.getvalue()).encode('utf-8')
+
+    def export_inventory_csv(self):
+        out = io.StringIO(newline='')
+        writer = csv.writer(out)
+        writer.writerow(['商品编码', '商品 / 原料', '单位', '账面数量', '补货线', '库存状态',
+                         '实盘数量（手填）', '备注（手填）'])
+        for product in self.products():
+            values = [product['sku'], product['name'], product['unit'], product['stock'],
+                      product['minimum'], '待补货' if product['low'] else '正常', '', '']
+            writer.writerow([csv_cell(value) for value in values])
         return ('\ufeff' + out.getvalue()).encode('utf-8')
 
     def backup_file(self):
