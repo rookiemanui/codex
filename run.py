@@ -71,10 +71,10 @@ def main():
     print('\n本地账本已启动。所有数据保存到：' + str(app.store.root), flush=True)
     if args.test_mode:
         print('【本地测试版】模拟数据持久保存，可练习完整流程；不会发起真实支付。', flush=True)
-    if not app.password:
-        print('本次连接码：' + app.code, flush=True)
-    else:
+    if app.password:
         print('使用已设置的独立密码登录。', flush=True)
+    else:
+        print('打开账本地址即可直接进入，无需连接码。', flush=True)
     if app.public_url:
         print('外网入口：' + app.public_url + '（需要 HTTPS 反向代理已经运行）', flush=True)
     if not app.public_url:
@@ -92,8 +92,8 @@ def main():
         for address in sorted(addresses):
             if not address.startswith('127.'):
                 print(f'同一Wi-Fi的手机可打开：http://{address}:{port}', flush=True)
-    credential = '独立密码' if app.password else '启动窗口连接码'
-    print(f'首次连接请输入{credential}。请保持此窗口运行；关闭后手机也会断开。按 Ctrl+C 退出。\n', flush=True)
+    prompt = '首次连接请输入独立密码。' if app.password else '电脑和同一局域网内的设备可直接打开账本。'
+    print(f'{prompt}请保持此窗口运行；关闭后手机也会断开。按 Ctrl+C 退出。\n', flush=True)
     if not args.no_browser:
         url = app.public_url or f'http://127.0.0.1:{port}'
         def launch_browser():

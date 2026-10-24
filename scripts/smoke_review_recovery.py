@@ -32,8 +32,6 @@ def running(directory, **options):
 
 def login(page, url):
     page.goto(url)
-    page.get_by_label('六位连接码').fill('123456')
-    page.get_by_role('button', name='进入账本').click()
     expect(page.get_by_text('本地测试版 · 模拟账本', exact=True)).to_be_visible()
 
 

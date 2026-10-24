@@ -16,8 +16,6 @@ NAME = '库存验收鸡肉（模拟）'
 
 def login(page, url):
     page.goto(url)
-    page.get_by_label('六位连接码').fill('123456')
-    page.get_by_role('button', name='进入账本', exact=True).click()
     page.locator('[data-page=inventory]').click()
     expect(page.get_by_role('heading', name='当前库存', exact=True)).to_be_visible()
 

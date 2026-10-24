@@ -107,7 +107,8 @@ async function api(path, body) {
   }
   if (!result.ok) {
     if (result.status === 401) {
-      loginScreen();
+      if (state.authMode === "direct") boot();
+      else loginScreen();
     }
     const error = new Error(value.error || "操作失败");
     error.status = result.status;
@@ -149,10 +150,14 @@ async function boot() {
   }
 }
 function loginScreen() {
+  if (state.authMode === "direct") {
+    boot();
+    return;
+  }
   clearInterval(state.poll);
   closeModal();
   $("#app").innerHTML =
-    `<div class="login-wrap"><form class="login-card" id="login-form"><div class="login-brand"><img src="/icon.svg" alt=""><strong>档口账本</strong></div><div class="eyebrow">YOUR SHOP, YOUR DATA</div><h1>连接店铺账本</h1><p>${state.authMode === "password" ? "输入你在电脑上设置的访问密码。" : "输入电脑启动窗口中的六位连接码；局域网外请使用配置的安全入口。"}</p><label class="form-field"><span>${state.authMode === "password" ? "访问密码" : "连接码"}</span><input class="code-input" id="access-code" name="code" ${state.authMode === "password" ? 'type="password" autocomplete="current-password" maxlength="256" aria-label="访问密码"' : 'inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" aria-label="六位连接码"'} required placeholder="······"></label><button class="primary full" type="submit">进入账本 ${icon("arrow")}</button><div class="form-error" id="login-error" role="alert"></div><small>${icon("shield")} 数据保存在电脑，无需云端账号</small></form></div>`;
+    `<div class="login-wrap"><form class="login-card" id="login-form"><div class="login-brand"><img src="/icon.svg" alt=""><strong>档口账本</strong></div><div class="eyebrow">YOUR SHOP, YOUR DATA</div><h1>连接店铺账本</h1><p>输入你在电脑上设置的访问密码。</p><label class="form-field"><span>访问密码</span><input class="code-input" id="access-code" name="code" type="password" autocomplete="current-password" maxlength="256" aria-label="访问密码" required placeholder="······"></label><button class="primary full" type="submit">进入账本 ${icon("arrow")}</button><div class="form-error" id="login-error" role="alert"></div><small>${icon("shield")} 数据保存在电脑，无需云端账号</small></form></div>`;
   $("#login-form").onsubmit = async (e) => {
     e.preventDefault();
     const button = $("button[type=submit]", e.target);
@@ -1114,10 +1119,14 @@ async function settingsPage() {
     }
   };
   $("#shop-settings").onclick = shopModal;
-  $("#logout-device").onclick = async () => {
-    await api("/api/logout", {});
-    await boot();
-  };
+  if (state.authMode === "direct") {
+    $("#logout-device").closest(".setting-row").remove();
+  } else {
+    $("#logout-device").onclick = async () => {
+      await api("/api/logout", {});
+      await boot();
+    };
+  }
   $("#go-rules").onclick = () => navigate("rules");
   $("#new-account").onclick = () => {
     modal(

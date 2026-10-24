@@ -30,8 +30,6 @@ def main():
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 page.goto(f'http://127.0.0.1:{server.server_address[1]}')
-                page.get_by_label('六位连接码').fill('123456')
-                page.get_by_role('button', name='进入账本').click()
                 page.locator('[data-page=pos]').click()
                 page.locator('[data-dish]').click()
                 page.reload()

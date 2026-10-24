@@ -45,7 +45,7 @@ class Application:
         if self.public_url and not self.password:
             raise Problem("外网模式必须先在电脑上运行 --set-password 设置独立密码")
         self.store = Store(directory)
-        self.code = code or ''.join(secrets.choice('0123456789') for _ in range(6))
+        # The code argument remains accepted for older callers; local access is direct.
         self.recognizer = Recognizer(directory)
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='local-ocr')
         self.sessions = {}
@@ -69,14 +69,14 @@ class Application:
 
     def login(self, code, ip):
         with self.auth_lock:
-            attempts = [t for t in self.attempts.get(ip, []) if time.time()-t < 60]
-            if len(attempts) >= 5:
-                raise Problem('尝试次数较多，请一分钟后重试')
-            valid = verify_password(self.password, code) if self.password else secrets.compare_digest(str(code), self.code)
-            if not valid:
-                self.attempts[ip] = attempts + [time.time()]
-                raise Problem('密码不正确' if self.password else '连接码不正确，请查看电脑上的启动窗口')
-            self.attempts.pop(ip, None)
+            if self.password:
+                attempts = [t for t in self.attempts.get(ip, []) if time.time()-t < 60]
+                if len(attempts) >= 5:
+                    raise Problem('尝试次数较多，请一分钟后重试')
+                if not verify_password(self.password, code):
+                    self.attempts[ip] = attempts + [time.time()]
+                    raise Problem('密码不正确')
+                self.attempts.pop(ip, None)
             self.sessions = {k: v for k, v in self.sessions.items() if v['expires'] > time.time()}
             key = secrets.token_urlsafe(32)
             self.sessions[key] = {'csrf': secrets.token_urlsafe(24), 'expires': time.time()+12*60*60}
@@ -158,8 +158,15 @@ def make_server(application, host='127.0.0.1', port=8765):
                 args = parse_qs(urlsplit(self.path).query)
                 if path == '/api/status':
                     session = application.session(self.headers.get('Cookie'))
+                    headers = None
+                    if not session and not application.password:
+                        key = application.login('', self.client_address[0])
+                        session = application.session('ledger_session=' + key)
+                        headers = {'Set-Cookie': f'ledger_session={key}; HttpOnly; SameSite=Strict; Path=/; Max-Age=43200'}
                     self.send({'authenticated': bool(session), 'csrf': session['csrf'] if session else '',
-                               'ledger_id': application.store.ledger_id if session else None, 'version': __version__, 'auth_mode': 'password' if application.password else 'code', 'test_mode': application.test_mode})
+                               'ledger_id': application.store.ledger_id if session else None, 'version': __version__,
+                               'auth_mode': 'password' if application.password else 'direct',
+                               'test_mode': application.test_mode}, headers=headers)
                     return
                 if not path.startswith('/api/'):
                     files = {'/': 'index.html', '/app.js': 'app.js', '/pos.js': 'pos.js', '/checks.js': 'checks.js', '/style.css': 'style.css', '/icon.svg': 'icon.svg'}
@@ -213,7 +220,7 @@ def make_server(application, host='127.0.0.1', port=8765):
                     self.send(store.rules())
                 elif path == '/api/backup-status':
                     self.send({**store.backup_status(), 'ocr_available': application.recognizer.available(),
-                               'version': __version__, 'access_mode': ('HTTPS 外网入口：' + application.public_url if application.public_url else ('本机或局域网，使用独立密码' if application.password else '本机或同一局域网，重启后更换连接码'))})
+                               'version': __version__, 'access_mode': ('HTTPS 外网入口：' + application.public_url if application.public_url else ('本机或局域网，使用独立密码' if application.password else '本机或同一局域网，打开地址直接进入'))})
                 elif path == '/api/export.csv':
                     self.send(store.export_csv(), mime='text/csv; charset=utf-8', headers={'Content-Disposition': 'attachment; filename="ledger.csv"'})
                 elif path == '/api/backup.zip':
