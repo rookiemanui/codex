@@ -47,7 +47,7 @@ class DataDirectoryLock:
                 fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
             stream.close()
-            raise Problem('这份账本已经打开，或数据目录无法锁定。请回到已有的账本控制窗口；'
+            raise Problem('这份账本已经打开，或数据目录无法锁定。请从 Windows 托盘回到已有的小锅账本；'
                           '如需重开，先在原窗口安全退出。不会连接到其他账本。') from exc
         self.file = stream
 
@@ -131,11 +131,12 @@ def open_app_window(url):
 class LedgerService:
     """Serve one explicitly selected directory and never attach to other servers."""
 
-    def __init__(self, directory, host='0.0.0.0', port=8765, test_mode=False):
+    def __init__(self, directory, host='0.0.0.0', port=8765, test_mode=False, desktop_control=None):
         self.directory = Path(directory).resolve()
         self.host = host
         self.port = port
         self.test_mode = test_mode
+        self.desktop_control = desktop_control
         self.application = None
         self.server = None
         self.thread = None
@@ -172,7 +173,8 @@ class LedgerService:
                     if os.name == 'nt':
                         probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
                     probe.bind((self.host, self.port))
-                self.application = Application(self.directory, test_mode=self.test_mode)
+                self.application = Application(self.directory, test_mode=self.test_mode,
+                                               desktop_control=self.desktop_control)
                 self.server = make_server(self.application, self.host, self.port)
                 self.thread = threading.Thread(target=self.server.serve_forever,
                                                kwargs={'poll_interval': 0.1},
@@ -183,7 +185,7 @@ class LedgerService:
                 self._dispose()
                 if isinstance(exc, OSError) and (getattr(exc, 'errno', None) in (48, 98, 10048)
                                                 or getattr(exc, 'winerror', None) == 10048):
-                    raise Problem(f'端口 {self.port} 正在使用。请先关闭已有的账本控制窗口，'
+                    raise Problem(f'端口 {self.port} 正在使用。请先从托盘安全退出已有的小锅账本，'
                                   '或使用 --port 8766 启动。没有连接到占用此端口的程序。') from exc
                 raise
 
@@ -205,6 +207,55 @@ class LedgerService:
                 self.server.shutdown()
                 self.thread.join()
             self._dispose()
+
+
+class DesktopControl:
+    """Pass local-only browser actions to Tk's main thread."""
+
+    def __init__(self, events):
+        self.events = events
+        self.service = None
+        self.pending = None
+        self.lock = threading.Lock()
+
+    def snapshot(self):
+        service = self.service
+        if service is None or not service.running:
+            raise Problem('账本服务尚未就绪')
+        return {'data_directory': str(service.directory), 'computer_url': service.url,
+                'phone_urls': service.phone_urls,
+                'access_mode': '需输入已设置的独立密码' if service.application.password else '打开地址直接进入，无需连接码'}
+
+    def request(self, command):
+        if command not in ('restore', 'stop'):
+            raise Problem('不支持此操作')
+        with self.lock:
+            if self.pending is not None:
+                raise Problem('上一个桌面操作仍在进行，请稍候')
+            self.pending = command
+        self.events.put(('desktop_' + command, None))
+
+    def finish(self, command):
+        with self.lock:
+            if self.pending == command:
+                self.pending = None
+
+
+def start_tray(events):
+    """Keep a visible Windows exit/reopen path while the browser window is closed."""
+    import pystray
+    from PIL import Image
+
+    resource_root = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[1]))
+    with Image.open(resource_root / 'assets/xiaoguo.ico') as icon_file:
+        image = icon_file.convert('RGBA')
+    menu = pystray.Menu(
+        pystray.MenuItem('打开小锅账本', lambda *_: events.put(('desktop_open', None)), default=True),
+        pystray.MenuItem('安全退出账本服务', lambda *_: events.put(('desktop_stop', None))),
+    )
+    tray = pystray.Icon('XiaoGuoLedger', image, '小锅账本 · 正在后台运行', menu)
+    tray.run_detached()
+    return tray
 
 
 def program_directory():
@@ -274,8 +325,13 @@ def main(argv=None):
     from tkinter import filedialog, messagebox, simpledialog, ttk
 
     args = parse_arguments(argv)
-    service = LedgerService(args.data_dir, args.host, args.port, args.test_mode)
+    events = queue.Queue()
+    control = DesktopControl(events)
+    service = LedgerService(args.data_dir, args.host, args.port, args.test_mode, desktop_control=control)
+    control.service = service
     root = tk.Tk()
+    if not args.no_auto_open:
+        root.withdraw()
     root.title('小锅账本 · 启动控制台' + ('【练习账本】' if args.test_mode else ''))
     root.geometry('700x620')
     root.minsize(620, 590)
@@ -308,8 +364,8 @@ def main(argv=None):
               wraplength=620).grid(sticky='w', pady=(6, 12))
     actions = ttk.Frame(content)
     actions.grid(sticky='ew', pady=6)
-    events = queue.Queue()
     phase = {'value': 'starting', 'close_requested': False, 'restoring': False}
+    tray = None
 
     def show_phone_addresses():
         phone.configure(state='normal')
@@ -321,7 +377,10 @@ def main(argv=None):
         try:
             open_app_window(service.url)
         except (OSError, Problem, ValueError) as exc:
+            root.deiconify()
             messagebox.showerror('桌面窗口未打开', str(exc), parent=root)
+            return False
+        return True
 
     def open_web():
         try:
@@ -330,7 +389,7 @@ def main(argv=None):
         except (OSError, Problem) as exc:
             messagebox.showerror('网页未打开', str(exc), parent=root)
 
-    def restore():
+    def restore_interactive():
         source = filedialog.askopenfilename(parent=root, title='选择完整备份 ZIP',
                                             filetypes=[('完整账本备份', '*.zip')])
         if not source:
@@ -361,13 +420,24 @@ def main(argv=None):
                 events.put(('restore', (None, exc)))
         threading.Thread(target=restore_work, name='ledger-restore', daemon=True).start()
 
+    def restore():
+        hidden = root.state() == 'withdrawn'
+        if hidden:
+            root.deiconify()
+            root.lift()
+        try:
+            restore_interactive()
+        finally:
+            if hidden:
+                root.withdraw()
+
     buttons = [ttk.Button(actions, text='打开软件窗口', command=open_window),
                ttk.Button(actions, text='打开普通网页', command=open_web),
                ttk.Button(actions, text='刷新手机地址', command=show_phone_addresses)]
     for button in buttons:
         button.pack(side='left', padx=(0, 8))
         button.state(['disabled'])
-    ttk.Label(content, text='请保持此控制窗口和电脑运行。关闭记账页面不会停止服务；安全退出后手机也会断开。',
+    ttk.Label(content, text='关闭记账页面不会停止服务；后台运行时可从托盘重新打开或安全退出。',
               wraplength=620).grid(sticky='w', pady=(12, 10))
     restore_button = ttk.Button(content, text='从备份恢复到新文件夹', command=restore)
     restore_button.grid(sticky='w', pady=(0, 8))
@@ -405,15 +475,38 @@ def main(argv=None):
     root.protocol('WM_DELETE_WINDOW', close)
 
     def poll():
+        nonlocal tray
         try:
             action, error = events.get_nowait()
         except queue.Empty:
             root.after(100, poll)
             return
+        if action == 'desktop_open':
+            open_window()
+            root.after(100, poll)
+            return
+        if action == 'desktop_restore':
+            if phase['value'] == 'running' and not phase['restoring']:
+                restore()
+            if not phase['restoring']:
+                control.finish('restore')
+            root.after(100, poll)
+            return
+        if action == 'desktop_stop':
+            if phase['value'] == 'running' and not phase['restoring']:
+                stop_service()
+            else:
+                control.finish('stop')
+            root.after(100, poll)
+            return
         if action == 'restore':
             result, restore_error = error
             phase['restoring'] = False
+            control.finish('restore')
             restore_button.state(['!disabled'])
+            was_hidden = root.state() == 'withdrawn'
+            if was_hidden:
+                root.deiconify()
             if restore_error:
                 messagebox.showerror('备份未能恢复', str(restore_error), parent=root)
             else:
@@ -428,6 +521,8 @@ def main(argv=None):
                                  f'--data-dir "{destination}"')
                 messagebox.showinfo('已恢复到新文件夹', f'恢复位置：\n{destination}\n\n'
                                     + next_step, parent=root)
+            if was_hidden:
+                root.withdraw()
             root.after(100, poll)
             return
         if error:
@@ -448,7 +543,11 @@ def main(argv=None):
             for button in buttons + [restore_button]:
                 button.state(['!disabled'])
             if not args.no_auto_open:
-                open_window()
+                if open_window():
+                    try:
+                        tray = start_tray(events)
+                    except Exception:
+                        root.deiconify()
         root.after(100, poll)
 
     threading.Thread(target=work, args=('start',), daemon=True).start()
@@ -456,5 +555,7 @@ def main(argv=None):
     try:
         root.mainloop()
     finally:
+        if tray is not None:
+            tray.stop()
         service.stop()
     return 0

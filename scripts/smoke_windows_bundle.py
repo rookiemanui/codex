@@ -48,7 +48,7 @@ def main():
                     try:
                         with client.open(url + '/api/status', timeout=1) as response:
                             status = json.load(response)
-                        assert status['version'] == '0.4.3' and status['test_mode']
+                        assert status['version'] == '0.4.4' and status['test_mode']
                         break
                     except OSError:
                         if process.poll() is not None or time.monotonic() > deadline:
@@ -62,6 +62,12 @@ def main():
                         page.get_by_label('访问密码', exact=True).fill('synthetic-only-verify-123')
                         page.get_by_role('button', name='进入账本').click()
                         expect(page.locator('[data-page=inventory]')).to_be_visible()
+                        page.locator('#desktop-toggle').click()
+                        expect(page.locator('#desktop-panel')).to_be_visible()
+                        expect(page.locator('#desktop-panel-content')).to_contain_text(str(directory))
+                        expect(page.locator('#desktop-stop')).to_be_visible()
+                        page.screenshot(path=str(args.screenshots / 'integrated-desktop-controls-synthetic.png'))
+                        page.locator('#desktop-toggle').click()
                         if cycle == 0:
                             page.locator('#content [data-new-entry]').click()
                             page.locator('.kind-tabs [data-kind=income]').click()

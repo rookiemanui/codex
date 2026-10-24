@@ -44,6 +44,8 @@ def main():
                     '--distpath', str(output), '--workpath', str(build / 'work'),
                     '--specpath', str(build), '--paths', str(ROOT),
                     '--add-data', str(ROOT / 'localledger/web') + ';localledger/web',
+                    '--add-data', str(ROOT / 'assets/xiaoguo.ico') + ';assets',
+                    '--hidden-import', 'pystray._win32',
                     '--exclude-module', 'paddleocr', '--exclude-module', 'paddle',
                     '--exclude-module', 'PyQt6', '--exclude-module', 'webview',
                     str(ROOT / 'desktop.py')], check=True, cwd=ROOT)

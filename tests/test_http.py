@@ -60,6 +60,42 @@ class HTTPCase(unittest.TestCase):
         with self.call('/api/transactions') as response:
             self.assertEqual(json.load(response), [])
 
+    def test_desktop_controls_require_a_local_app_and_csrf(self):
+        self.login()
+        with self.call('/api/status') as response:
+            self.assertFalse(json.load(response)['desktop_controls'])
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.call('/api/desktop')
+        self.assertEqual(raised.exception.code, 403)
+
+        class Control:
+            def __init__(self):
+                self.commands = []
+
+            def snapshot(self):
+                return {'data_directory': 'synthetic', 'computer_url': self_url,
+                        'phone_urls': [], 'access_mode': '直接进入'}
+
+            def request(self, command):
+                self.commands.append(command)
+
+        self_url = self.url
+        control = Control()
+        self.app.desktop_control = control
+        with self.call('/api/status') as response:
+            self.assertTrue(json.load(response)['desktop_controls'])
+        with self.call('/api/desktop') as response:
+            self.assertEqual(json.load(response)['data_directory'], 'synthetic')
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.call('/api/desktop', headers={'Host': '192.168.0.13:' + self.url.rsplit(':', 1)[1]})
+        self.assertEqual(raised.exception.code, 403)
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.call('/api/desktop/stop', {}, csrf=False)
+        self.assertEqual(raised.exception.code, 403)
+        with self.call('/api/desktop/restore', {}) as response:
+            self.assertTrue(json.load(response)['ok'])
+        self.assertEqual(control.commands, ['restore'])
+
     def test_mutations_require_csrf_and_matching_origin(self):
         self.login()
         with self.assertRaises(urllib.error.HTTPError) as raised:

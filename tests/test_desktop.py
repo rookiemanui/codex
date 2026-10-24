@@ -3,6 +3,7 @@ import http.cookiejar
 import json
 import os
 from pathlib import Path
+import queue
 import subprocess
 import sys
 import tempfile
@@ -12,7 +13,7 @@ import unittest
 from unittest.mock import patch
 import urllib.request
 
-from localledger.desktop import (DataDirectoryLock, LedgerService, _cmd_argument, create_restore_launcher,
+from localledger.desktop import (DataDirectoryLock, DesktopControl, LedgerService, _cmd_argument, create_restore_launcher,
                                  open_app_window, parse_arguments, restore_for_desktop)
 from localledger.store import Problem, Store
 
@@ -42,6 +43,24 @@ class DesktopLifecycleCase(unittest.TestCase):
             assert status['authenticated'] and status['auth_mode'] == 'direct'
             csrf = status['csrf']
         return client, csrf
+
+    def test_desktop_control_reports_connection_and_serializes_commands(self):
+        events = queue.Queue()
+        control = DesktopControl(events)
+        with self.assertRaises(Problem):
+            control.snapshot()
+        service = self.service(desktop_control=control).start()
+        control.service = service
+        details = control.snapshot()
+        self.assertEqual(details['computer_url'], service.url)
+        self.assertEqual(details['data_directory'], str(service.directory))
+        control.request('restore')
+        self.assertEqual(events.get_nowait()[0], 'desktop_restore')
+        with self.assertRaises(Problem):
+            control.request('stop')
+        control.finish('restore')
+        control.request('stop')
+        self.assertEqual(events.get_nowait()[0], 'desktop_stop')
 
     def test_two_clients_share_data_and_restart_preserves_it(self):
         service = self.service().start()

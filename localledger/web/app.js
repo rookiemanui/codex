@@ -47,6 +47,8 @@ const state = {
   searchTimer: null,
   transactionRequest: 0,
   reviewEdits: new Map(),
+  desktopControls: false,
+  desktopAbort: null,
 };
 let modalContext = null;
 const iconPaths = {
@@ -103,7 +105,7 @@ async function api(path, body) {
   try {
     value = await result.json();
   } catch {
-    throw new Error("本地服务返回异常，请检查电脑上的启动窗口");
+    throw new Error("本地服务返回异常，请确认小锅账本仍在运行");
   }
   if (!result.ok) {
     if (result.status === 401) {
@@ -140,6 +142,7 @@ async function boot() {
     state.ledgerId = result.ledger_id;
     state.authMode = result.auth_mode;
     state.testMode = result.test_mode;
+    state.desktopControls = result.desktop_controls;
     if (result.authenticated) {
       await shell();
     } else loginScreen();
@@ -173,6 +176,88 @@ function loginScreen() {
   };
   $("#access-code").focus();
 }
+function desktopTools() {
+  if (!state.desktopControls) return "";
+  return `<div class="desktop-utility"><div class="desktop-menu"><button id="desktop-toggle" class="desktop-toggle" type="button" aria-expanded="false" aria-controls="desktop-panel"><span class="local-dot"></span> 服务运行中 · 连接与退出 ${icon("down")}</button><section id="desktop-panel" class="desktop-panel" aria-label="连接与服务" hidden><div class="desktop-panel-head"><strong>连接与服务</strong><span class="tag good">运行中</span></div><div id="desktop-panel-content" role="status">正在读取连接信息…</div></section></div></div>`;
+}
+async function refreshDesktopPanel() {
+  const content = $("#desktop-panel-content");
+  if (!content) return;
+  content.textContent = "正在读取连接信息…";
+  try {
+    const info = await api("/api/desktop");
+    if (!content.isConnected) return;
+    const phone = info.phone_urls.length
+      ? info.phone_urls.map((url) => `<div class="desktop-address"><code>${esc(url)}</code><button class="small" type="button" data-copy="${esc(url)}" aria-label="复制手机地址">复制</button></div>`).join("")
+      : '<p class="desktop-empty">暂未发现局域网地址，请确认电脑连接了店内 Wi-Fi。</p>';
+    content.innerHTML = `<div class="desktop-detail"><span>数据保存位置</span><code>${esc(info.data_directory)}</code></div><div class="desktop-detail"><span>访问方式</span><strong>${esc(info.access_mode)}</strong></div><div class="desktop-detail"><span>电脑网页地址</span><div class="desktop-address"><code>${esc(info.computer_url)}</code><button class="small" type="button" data-copy="${esc(info.computer_url)}" aria-label="复制电脑地址">复制</button></div></div><div class="desktop-detail"><span>手机地址 · 同一 Wi-Fi</span>${phone}</div><p class="desktop-tip">关闭记账窗口后，手机仍可继续使用；退出服务后才会断开。</p><div class="desktop-actions"><a class="desktop-link" href="${esc(info.computer_url)}" target="_blank" rel="noopener">打开普通网页</a><button id="desktop-refresh" class="small" type="button">刷新地址</button></div><div class="desktop-actions desktop-last"><button id="desktop-restore" class="small" type="button">从备份恢复到新文件夹</button><button id="desktop-stop" class="small danger" type="button">安全退出服务</button></div>`;
+    $$("[data-copy]", content).forEach((button) => button.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copy);
+        toast("地址已复制");
+      } catch {
+        toast("复制失败，请手动选择地址", true);
+      }
+    });
+    $("#desktop-refresh").onclick = refreshDesktopPanel;
+    $("#desktop-restore").onclick = async () => {
+      const button = $("#desktop-restore");
+      button.disabled = true;
+      try {
+        await api("/api/desktop/restore", {});
+        toast("请在 Windows 文件选择窗口中选择完整备份");
+      } catch (error) {
+        toast(error.message, true);
+      } finally {
+        button.disabled = false;
+      }
+    };
+    $("#desktop-stop").onclick = () => {
+      modal("安全退出账本服务", '<p>已保存的账目会保留。退出后，电脑和手机的记账页面都会断开。</p><div class="form-footer"><button id="cancel-desktop-stop" type="button">继续使用</button><button id="confirm-desktop-stop" class="danger" type="button">安全退出</button></div>');
+      $("#cancel-desktop-stop").onclick = closeModal;
+      $("#confirm-desktop-stop").onclick = async () => {
+        const button = $("#confirm-desktop-stop");
+        button.disabled = true;
+        try {
+          await api("/api/desktop/stop", {});
+          closeModal();
+          toast("正在等待当前操作完成并安全退出…");
+        } catch (error) {
+          button.disabled = false;
+          toast(error.message, true);
+        }
+      };
+    };
+  } catch (error) {
+    content.innerHTML = `<p class="desktop-empty">${esc(error.message)}</p><button id="desktop-retry" class="small" type="button">重新读取</button>`;
+    $("#desktop-retry").onclick = refreshDesktopPanel;
+  }
+}
+function bindDesktopTools() {
+  state.desktopAbort?.abort();
+  if (!state.desktopControls) return;
+  state.desktopAbort = new AbortController();
+  const toggle = $("#desktop-toggle");
+  const panel = $("#desktop-panel");
+  toggle.onclick = () => {
+    panel.hidden = !panel.hidden;
+    toggle.setAttribute("aria-expanded", String(!panel.hidden));
+    if (!panel.hidden) refreshDesktopPanel();
+  };
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".desktop-menu")) {
+      panel.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+    }
+  }, { signal: state.desktopAbort.signal });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !panel.hidden) {
+      panel.hidden = true;
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.focus();
+    }
+  }, { signal: state.desktopAbort.signal });
+}
 async function shell() {
   state.options = await api("/api/options");
   $("#app").innerHTML =
@@ -192,10 +277,11 @@ async function shell() {
       )
       .join(
         "",
-      )}</nav><div class="sidebar-foot"><span class="local-dot"></span><span style="font-size:12px">数据留在本机</span><p>一笔一备份，经营更安心。</p></div></aside><main class="main"><div class="mobile-brand"><img src="/icon.svg" alt="">小锅账本</div><div id="content"></div></main></div>`;
+      )}</nav><div class="sidebar-foot"><span class="local-dot"></span><span style="font-size:12px">数据留在本机</span><p>一笔一备份，经营更安心。</p></div></aside><main class="main"><div class="mobile-brand"><img src="/icon.svg" alt="">小锅账本</div>${desktopTools()}<div id="content"></div></main></div>`;
   $$("[data-page]").forEach(
     (el) => (el.onclick = () => navigate(el.dataset.page)),
   );
+  bindDesktopTools();
   await render();
 }
 async function navigate(page) {
