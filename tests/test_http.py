@@ -55,7 +55,7 @@ class HTTPCase(unittest.TestCase):
             self.call('/api/transactions')
         self.assertEqual(raised.exception.code, 401)
         with self.call('/') as response:
-            self.assertIn('档口账本', response.read().decode())
+            self.assertIn('小锅账本', response.read().decode())
         self.login()
         with self.call('/api/transactions') as response:
             self.assertEqual(json.load(response), [])

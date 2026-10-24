@@ -237,7 +237,7 @@ class RestoreLauncherCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / '恢复 %TEMP% & !'
             directory.mkdir()
-            executable = Path(temporary) / '软件 50% & !' / 'DangkouLedger.exe'
+            executable = Path(temporary) / '软件 50% & !' / 'XiaoGuoLedger.exe'
             with patch('localledger.desktop.sys.executable', str(executable)), \
                     patch('localledger.desktop.sys.frozen', True, create=True):
                 launcher = create_restore_launcher(directory)

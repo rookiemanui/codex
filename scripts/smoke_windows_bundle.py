@@ -24,7 +24,7 @@ def main():
     parser.add_argument('bundle', type=Path)
     parser.add_argument('--screenshots', type=Path, default=Path('output/playwright/windows'))
     args = parser.parse_args()
-    executable = args.bundle.resolve() / 'DangkouLedger.exe'
+    executable = args.bundle.resolve() / 'XiaoGuoLedger.exe'
     assert executable.is_file()
     args.screenshots.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='ledger-frozen-synthetic-') as temp:
@@ -48,7 +48,7 @@ def main():
                     try:
                         with client.open(url + '/api/status', timeout=1) as response:
                             status = json.load(response)
-                        assert status['version'] == '0.4.2' and status['test_mode']
+                        assert status['version'] == '0.4.3' and status['test_mode']
                         break
                     except OSError:
                         if process.poll() is not None or time.monotonic() > deadline:

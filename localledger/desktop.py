@@ -256,7 +256,7 @@ def restore_for_desktop(source, directory):
 
 
 def parse_arguments(argv=None):
-    parser = argparse.ArgumentParser(description='档口账本：Windows 与手机共用一本账')
+    parser = argparse.ArgumentParser(description='小锅账本：Windows 与手机共用一本账')
     parser.add_argument('--data-dir', help='账本目录；默认为软件旁的 data')
     parser.add_argument('--test-mode', action='store_true', help='使用独立模拟账本')
     parser.add_argument('--port', type=int)
@@ -276,7 +276,7 @@ def main(argv=None):
     args = parse_arguments(argv)
     service = LedgerService(args.data_dir, args.host, args.port, args.test_mode)
     root = tk.Tk()
-    root.title('档口账本 · 启动控制台' + ('【练习账本】' if args.test_mode else ''))
+    root.title('小锅账本 · 启动控制台' + ('【练习账本】' if args.test_mode else ''))
     root.geometry('700x620')
     root.minsize(620, 590)
     root.configure(bg='#f3f5f1')
@@ -288,7 +288,7 @@ def main(argv=None):
     content = ttk.Frame(root, padding=24)
     content.pack(fill='both', expand=True)
     content.columnconfigure(0, weight=1)
-    ttk.Label(content, text='档口账本', font=('Microsoft YaHei UI', 22, 'bold')).grid(sticky='w')
+    ttk.Label(content, text='小锅账本', font=('Microsoft YaHei UI', 22, 'bold')).grid(sticky='w')
     status = tk.StringVar(value='正在打开账本，请稍候……')
     ttk.Label(content, textvariable=status).grid(sticky='w', pady=(8, 16))
     if args.test_mode:

@@ -21,7 +21,7 @@ def main():
         '启动外网试用.bat', '启动测试版.bat', '用Chrome打开账本.bat', '安装截图识别.bat', 'requirements-ocr.in', 'requirements-ocr.lock',
         'requirements-dev.in', 'requirements-dev.lock', 'ruff.toml',
         'requirements-packaging.in', 'requirements-packaging-linux.lock']]
-    for folder, suffixes in [('localledger', {'.py', '.html', '.css', '.js', '.svg'}),
+    for folder, suffixes in [('assets', {'.ico'}), ('localledger', {'.py', '.html', '.css', '.js', '.svg'}),
                              ('scripts', {'.py', '.json'}), ('tests', {'.py'}), ('docs', {'.md'}),
                              ('deploy', {'.example'}), ('devtools', {'.json'})]:
         files.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and p.suffix in suffixes and '__pycache__' not in p.parts)
