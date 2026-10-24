@@ -212,6 +212,110 @@ button:active {
   width: 100%;
   margin: 0 auto;
 }
+.desktop-utility {
+  display: flex;
+  justify-content: flex-end;
+  margin: -9px 0 14px;
+}
+.desktop-menu {
+  position: relative;
+  z-index: 45;
+}
+.desktop-toggle {
+  border-color: #d7e6db;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 12px;
+  padding: 7px 11px;
+  font-weight: 600;
+}
+.desktop-toggle .local-dot {
+  margin: 0;
+}
+.desktop-toggle svg {
+  width: 14px;
+  height: 14px;
+}
+.desktop-panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(410px, calc(100vw - 24px));
+  max-height: min(680px, calc(100dvh - 86px));
+  overflow: auto;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 18px 55px #193c2a24;
+  padding: 19px;
+}
+.desktop-panel[hidden] {
+  display: none;
+}
+.desktop-panel-head,
+.desktop-actions,
+.desktop-address {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.desktop-panel-head {
+  margin-bottom: 15px;
+}
+.desktop-panel-head strong {
+  font-size: 16px;
+}
+.desktop-detail {
+  display: grid;
+  gap: 5px;
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+.desktop-detail > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.desktop-detail > strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.desktop-detail code,
+.desktop-empty {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.desktop-address + .desktop-address {
+  margin-top: 5px;
+}
+.desktop-address code {
+  flex: 1;
+  min-width: 0;
+}
+.desktop-address button {
+  flex: none;
+}
+.desktop-tip {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 6px 0 12px;
+}
+.desktop-actions {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.desktop-link {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.desktop-last {
+  border-top: 1px solid var(--line);
+  padding-top: 13px;
+  margin-top: 13px;
+}
 .topbar {
   display: flex;
   align-items: center;

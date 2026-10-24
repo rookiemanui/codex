@@ -36,11 +36,12 @@ class LedgerHTTPServer(ThreadingHTTPServer):
 
 
 class Application:
-    def __init__(self, directory, code=None, public_url=None, test_mode=False):
+    def __init__(self, directory, code=None, public_url=None, test_mode=False, desktop_control=None):
         self.test_mode = test_mode or is_trial(directory)
         if self.test_mode:
             directory = prepare_trial(directory)
         self.public_url = public_origin(public_url)
+        self.desktop_control = desktop_control
         self.password = load_password(directory)
         if self.public_url and not self.password:
             raise Problem("外网模式必须先在电脑上运行 --set-password 设置独立密码")
@@ -150,6 +151,12 @@ def make_server(application, host='127.0.0.1', port=8765):
                 return False
             return True
 
+        def desktop_request_valid(self):
+            """Desktop controls belong only to the local Windows app window."""
+            return bool(application.desktop_control
+                        and self.client_address[0] == '127.0.0.1'
+                        and self.headers.get('Host') == f'127.0.0.1:{self.server.server_address[1]}')
+
         def do_GET(self):
             if not self.remote_request_valid():
                 return
@@ -166,7 +173,8 @@ def make_server(application, host='127.0.0.1', port=8765):
                     self.send({'authenticated': bool(session), 'csrf': session['csrf'] if session else '',
                                'ledger_id': application.store.ledger_id if session else None, 'version': __version__,
                                'auth_mode': 'password' if application.password else 'direct',
-                               'test_mode': application.test_mode}, headers=headers)
+                               'test_mode': application.test_mode,
+                               'desktop_controls': self.desktop_request_valid()}, headers=headers)
                     return
                 if not path.startswith('/api/'):
                     files = {'/': 'index.html', '/app.js': 'app.js', '/pos.js': 'pos.js', '/checks.js': 'checks.js', '/style.css': 'style.css', '/icon.svg': 'icon.svg'}
@@ -180,7 +188,12 @@ def make_server(application, host='127.0.0.1', port=8765):
                     return
                 store = application.store
                 month = args.get('month', [time.strftime('%Y-%m')])[0]
-                if path == '/api/options':
+                if path == '/api/desktop':
+                    if not self.desktop_request_valid():
+                        self.send({'error': '此操作只能在本机软件窗口使用'}, 403)
+                    else:
+                        self.send(application.desktop_control.snapshot())
+                elif path == '/api/options':
                     self.send(store.options())
                 elif path == '/api/summary':
                     self.send(store.summary(month))
@@ -249,7 +262,7 @@ def make_server(application, host='127.0.0.1', port=8765):
                 pass
             except Exception:
                 traceback.print_exc()
-                self.send({'error': '本地操作失败，请查看电脑启动窗口；已保存的账目不会被自动清除'}, 500)
+                self.send({'error': '本地操作失败，请检查小锅账本后台服务；已保存的账目不会被自动清除'}, 500)
 
         def do_POST(self):
             if not self.remote_request_valid():
@@ -276,7 +289,14 @@ def make_server(application, host='127.0.0.1', port=8765):
                 if not self.authenticated(mutation=True):
                     return
                 store = application.store
-                if path == '/api/logout':
+                if path in ('/api/desktop/restore', '/api/desktop/stop'):
+                    if not self.desktop_request_valid():
+                        self.send({'error': '此操作只能在本机软件窗口使用'}, 403)
+                    else:
+                        command = path.rsplit('/', 1)[1]
+                        application.desktop_control.request(command)
+                        self.send({'ok': True})
+                elif path == '/api/logout':
                     cookie = SimpleCookie(self.headers.get('Cookie') or '')
                     if 'ledger_session' in cookie:
                         with application.auth_lock:
@@ -342,6 +362,6 @@ def make_server(application, host='127.0.0.1', port=8765):
                 pass
             except Exception:
                 traceback.print_exc()
-                self.send({'error': '本地操作失败，请查看电脑启动窗口；重复提交不会重复记账'}, 500)
+                self.send({'error': '本地操作失败，请检查小锅账本后台服务；重复提交不会重复记账'}, 500)
 
     return LedgerHTTPServer((host, port), Handler)
