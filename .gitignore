@@ -37,3 +37,6 @@ access.json
 *.key
 
 .packaging-venv/
+.gradle/
+local.properties
+*.apk
